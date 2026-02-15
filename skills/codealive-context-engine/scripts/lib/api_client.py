@@ -103,21 +103,19 @@ class CodeAliveClient:
         """
         self.api_key = api_key or os.getenv("CODEALIVE_API_KEY") or self._get_key_from_keychain()
         if not self.api_key:
-            import platform
-            hint = "  2. "
-            if platform.system() == "Darwin":
-                hint += 'macOS Keychain: security add-generic-password -a "$USER" -s "codealive-api-key" -w "YOUR_KEY"'
-            elif platform.system() == "Linux":
-                hint += 'secret-tool: secret-tool store --label="CodeAlive API Key" service codealive-api-key'
-            elif platform.system() == "Windows":
-                hint += 'Windows Credential Manager: cmdkey /generic:codealive-api-key /user:codealive /pass:"YOUR_KEY"'
-            else:
-                hint += "OS credential store (not available on this platform)"
+            # Resolve skill directory for setup.py path
+            skill_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            setup_path = os.path.join(skill_dir, "setup.py")
             raise ValueError(
-                "CodeAlive API key not found. Provide it via:\n"
-                "  1. CODEALIVE_API_KEY environment variable\n"
-                f"{hint}\n"
-                "  3. Pass api_key parameter directly"
+                "CodeAlive API key not configured.\n"
+                "\n"
+                "Run the interactive setup:\n"
+                f"  python {setup_path}\n"
+                "\n"
+                "Or set the key manually:\n"
+                "  export CODEALIVE_API_KEY=\"your_key\"\n"
+                "\n"
+                "Get your API key at: https://app.codealive.ai/settings/api-keys"
             )
 
         self.base_url = base_url or os.getenv("CODEALIVE_BASE_URL", "https://app.codealive.ai")

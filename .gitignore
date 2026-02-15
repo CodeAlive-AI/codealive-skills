@@ -1,0 +1,30 @@
+# Agent skill symlinks (created by `npx skills add`)
+.agent/
+.agents/
+.claude/
+.cline/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.cursor/
+.factory/
+.goose/
+.junie/
+.kilocode/
+.kiro/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.windsurf/
+.zencoder/
+
+# Python
+__pycache__/
+*.pyc

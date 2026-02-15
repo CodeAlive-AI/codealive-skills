@@ -7,8 +7,25 @@ description: Semantic code search and AI-powered codebase Q&A across indexed rep
 
 Semantic code intelligence across your entire code ecosystem — current project, organizational repos, dependencies, and any indexed codebase.
 
+## First Use — Authentication Required
+
+Before running any script, verify the API key is configured:
+
+```bash
+python scripts/check_auth.py
+```
+
+If it exits with an error, run the interactive setup and wait for the user to complete it:
+
+```bash
+python setup.py
+```
+
+Do NOT run search, chat, datasources, or explore scripts until authentication is confirmed. If any script fails with "API key not configured", run `python setup.py` before retrying.
+
 ## Table of Contents
 
+- [First Use — Authentication Required](#first-use--authentication-required)
 - [Tools Overview](#tools-overview)
 - [When to Use](#when-to-use)
 - [Quick Start](#quick-start)
