@@ -1,0 +1,20 @@
+{
+  "name": "codealive-marketplace",
+  "owner": {
+    "name": "CodeAlive AI",
+    "email": "hello@codealive.ai"
+  },
+  "metadata": {
+    "description": "CodeAlive integrations for AI coding agents",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "codealive",
+      "description": "CodeAlive context engine for semantic code search and AI-powered codebase Q&A. Enables AI agents to understand entire codebases beyond just open files, trace cross-service patterns, and answer architectural questions.",
+      "source": "./",
+      "strict": false,
+      "skills": ["./skills/codealive-context-engine"]
+    }
+  ]
+}

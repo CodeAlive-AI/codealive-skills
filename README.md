@@ -1,28 +1,24 @@
 # CodeAlive Skills
 
-Agent skills for [CodeAlive](https://app.codealive.ai) — install via [skills.sh](https://skills.sh/) to any AI coding agent.
+Agent skills and Claude Code plugin for [CodeAlive](https://app.codealive.ai) — install via [skills.sh](https://skills.sh/) or as a Claude Code plugin.
 
 ## Available Skills
 
-| Skill | Description | Install |
-|-------|-------------|---------|
-| [codealive-context-engine](codealive-context-engine/) | Semantic code search and AI-powered codebase Q&A across indexed repositories | `npx skills add CodeAlive-AI/codealive-skills@codealive-context-engine` |
+| Skill | Description |
+|-------|-------------|
+| [codealive-context-engine](skills/codealive-context-engine/) | Semantic code search and AI-powered codebase Q&A across indexed repositories |
 
-## Supported Agents
+## Installation
 
-Works with any agent that supports the [SKILL.md](https://skills.sh/docs) format:
+### Option 1: Skills (universal — 30+ agents)
 
-Claude Code, Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, and others.
-
-## Quick Start
-
-### 1. Install
+Works with Claude Code, Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, and [others](https://agentskills.io/).
 
 ```bash
 npx skills add CodeAlive-AI/codealive-skills@codealive-context-engine
 ```
 
-Or copy the skill folder manually into your agent's skills directory:
+Or copy the `skills/codealive-context-engine` folder into your agent's skills directory:
 
 | Agent | Project scope | User scope |
 |-------|--------------|------------|
@@ -37,32 +33,47 @@ Or copy the skill folder manually into your agent's skills directory:
 | Roo Code | `.roo/skills/` | `~/.roo/skills/` |
 | OpenCode | `.opencode/skill/` | `~/.config/opencode/skill/` |
 
-### 2. Set up
+### Option 2: Claude Code Plugin
+
+For Claude Code users, this repository also serves as a plugin marketplace with Claude-specific enhancements.
+
+```
+/plugin marketplace add CodeAlive-AI/codealive-skills
+/plugin install codealive@codealive-marketplace
+```
+
+### Option 3: MCP Server
+
+For deeper integration, install the [CodeAlive MCP server](https://github.com/CodeAlive-AI/codealive-mcp) — it gives your agent direct access to CodeAlive's tools via the Model Context Protocol. The skill and MCP server complement each other: the MCP server provides tool access, the skill teaches the agent how to use it effectively.
+
+## Setup
+
+After installing the skill, run the interactive setup:
 
 ```bash
 python setup.py
 ```
 
-The interactive setup will ask for your [API key](https://app.codealive.ai/settings/api-keys), verify it, and store it securely in your OS credential store.
+This will ask for your [API key](https://app.codealive.ai/settings/api-keys), verify it, and store it securely in your OS credential store.
 
 ### API Key Storage
 
-The setup script (and the skill at runtime) resolves the API key in this order:
+The API key is resolved in this order:
 
 1. `CODEALIVE_API_KEY` environment variable
 2. OS credential store:
 
-| Platform | Store | How to save manually |
-|----------|-------|---------------------|
+| Platform | Store | Manual command |
+|----------|-------|----------------|
 | macOS | Keychain | `security add-generic-password -a "$USER" -s "codealive-api-key" -w "KEY"` |
-| Linux | freedesktop Secret Service | `secret-tool store --label="CodeAlive API Key" service codealive-api-key` |
+| Linux | Secret Service | `secret-tool store --label="CodeAlive API Key" service codealive-api-key` |
 | Windows | Credential Manager | `cmdkey /generic:codealive-api-key /user:codealive /pass:"KEY"` |
 
-The key is stored once and shared across all agents on the same machine — no need to configure each agent separately.
+The key is stored once and shared across all agents on the same machine.
 
 **Self-hosted instance:** set `CODEALIVE_BASE_URL` env var to your instance URL.
 
-### 3. Use
+## Usage
 
 Start your agent and ask naturally:
 

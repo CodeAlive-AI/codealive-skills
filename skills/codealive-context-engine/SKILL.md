@@ -186,6 +186,17 @@ export CODEALIVE_BASE_URL="https://your-instance.example.com"
 
 Get API keys at: https://app.codealive.ai/settings/api-keys
 
+## Using with CodeAlive MCP Server
+
+This skill works standalone, but delivers the best experience when combined with the [CodeAlive MCP server](https://github.com/CodeAlive-AI/codealive-mcp). The MCP server provides direct tool access via the Model Context Protocol, while this skill provides the workflow knowledge and query patterns to use those tools effectively.
+
+| Component | What it provides |
+|-----------|-----------------|
+| **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
+| **MCP server** | Direct `codebase_search`, `codebase_consultant`, `get_data_sources` tools |
+
+When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided multi-step workflows like `explore.py`.
+
 ## Detailed Guides
 
 For advanced usage, see reference files:
