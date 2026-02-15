@@ -103,19 +103,19 @@ class CodeAliveClient:
         """
         self.api_key = api_key or os.getenv("CODEALIVE_API_KEY") or self._get_key_from_keychain()
         if not self.api_key:
-            # Resolve skill directory for setup.py path
             skill_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             setup_path = os.path.join(skill_dir, "setup.py")
             raise ValueError(
                 "CodeAlive API key not configured.\n"
                 "\n"
-                "Run the interactive setup:\n"
+                "Option 1 (recommended): Run the interactive setup:\n"
                 f"  python {setup_path}\n"
                 "\n"
-                "Or set the key manually:\n"
-                "  export CODEALIVE_API_KEY=\"your_key\"\n"
+                "Option 2 (not recommended — key visible in chat history):\n"
+                "  Ask the user to paste their API key, then run:\n"
+                f"  python {setup_path} --key THE_KEY\n"
                 "\n"
-                "Get your API key at: https://app.codealive.ai/settings/api-keys"
+                "Get API key at: https://app.codealive.ai/settings/api-keys"
             )
 
         self.base_url = base_url or os.getenv("CODEALIVE_BASE_URL", "https://app.codealive.ai")

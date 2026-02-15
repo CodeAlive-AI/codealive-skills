@@ -7,25 +7,25 @@ description: Semantic code search and AI-powered codebase Q&A across indexed rep
 
 Semantic code intelligence across your entire code ecosystem — current project, organizational repos, dependencies, and any indexed codebase.
 
-## First Use — Authentication Required
+## Authentication
 
-Before running any script, verify the API key is configured:
+All scripts require a CodeAlive API key. If any script fails with "API key not configured", help the user set it up:
 
-```bash
-python scripts/check_auth.py
-```
-
-If it exits with an error, run the interactive setup and wait for the user to complete it:
-
+**Option 1 (recommended):** Run the interactive setup and wait for the user to complete it:
 ```bash
 python setup.py
 ```
 
-Do NOT run search, chat, datasources, or explore scripts until authentication is confirmed. If any script fails with "API key not configured", run `python setup.py` before retrying.
+**Option 2 (not recommended — key visible in chat history):** If the user pastes their API key directly in chat, save it via:
+```bash
+python setup.py --key THE_KEY
+```
+
+Do NOT retry the failed script until setup completes successfully.
 
 ## Table of Contents
 
-- [First Use — Authentication Required](#first-use--authentication-required)
+- [Authentication](#authentication)
 - [Tools Overview](#tools-overview)
 - [When to Use](#when-to-use)
 - [Quick Start](#quick-start)

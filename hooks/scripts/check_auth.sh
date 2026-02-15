@@ -20,7 +20,7 @@ if [ -z "$KEY" ]; then
   SETUP_PATH="${PLUGIN_ROOT}/skills/codealive-context-engine/setup.py"
 
   cat <<EOF
-{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[CodeAlive] API key is not configured. The codealive-context-engine skill requires authentication to work.\n\nTo set up, run: python ${SETUP_PATH}\nOr set manually: export CODEALIVE_API_KEY=\"your_key\"\nGet your key at: https://app.codealive.ai/settings/api-keys"}}
+{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[CodeAlive] API key is not configured. The codealive-context-engine skill requires authentication.\n\nOption 1 (recommended): run interactive setup: python ${SETUP_PATH}\nOption 2 (not recommended — key visible in chat history): ask the user to paste their key, then run: python ${SETUP_PATH} --key THE_KEY\nGet key at: https://app.codealive.ai/settings/api-keys"}}
 EOF
 fi
 
