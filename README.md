@@ -10,9 +10,11 @@ Agent skills and Claude Code plugin for [CodeAlive](https://app.codealive.ai) �
 
 ## Installation
 
+> **Claude Code users:** the recommended installation method is [Option 2 (Plugin)](#option-2-claude-code-plugin) — it includes the skill plus authentication hooks and a code exploration subagent.
+
 ### Option 1: Skills (universal — 30+ agents)
 
-Works with Claude Code, Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, and [others](https://agentskills.io/).
+Works with Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, and [others](https://agentskills.io/).
 
 ```bash
 npx skills add CodeAlive-AI/codealive-skills@codealive-context-engine
