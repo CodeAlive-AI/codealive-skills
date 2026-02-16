@@ -13,8 +13,7 @@
       "name": "codealive",
       "description": "CodeAlive context engine for semantic code search and AI-powered codebase Q&A. Enables AI agents to understand entire codebases beyond just open files, trace cross-service patterns, and answer architectural questions.",
       "source": "./",
-      "strict": false,
-      "skills": ["./skills/codealive-context-engine"]
+      "strict": false
     }
   ]
 }
