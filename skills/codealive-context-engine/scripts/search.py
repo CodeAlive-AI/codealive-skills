@@ -4,8 +4,9 @@ CodeAlive Search - Semantic code search across indexed repositories
 
 Usage:
     python search.py "How is authentication handled?" my-repo --mode auto
-    python search.py "JWT token validation" workspace:backend-team --include-content
+    python search.py "JWT token validation" workspace:backend-team
     python search.py "React hooks patterns" react lodash --mode deep
+    python search.py "user registration" my-repo --description-detail full
 
 Examples:
     # Search current project
@@ -17,8 +18,8 @@ Examples:
     # Deep search for complex queries
     python search.py "How do services communicate?" workspace:microservices --mode deep
 
-    # Include full content for external repos
-    python search.py "authentication flow" external-lib --include-content
+    # Get full descriptions for more context
+    python search.py "authentication flow" my-repo --description-detail full
 """
 
 import sys
@@ -31,7 +32,17 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from api_client import CodeAliveClient
 
 
-def format_search_results(results: dict, include_content: bool = False) -> str:
+def _format_byte_size(size_bytes: int) -> str:
+    """Format byte size to human-readable string."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    else:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+def format_search_results(results: dict) -> str:
     """Format search results for display."""
     if not results:
         return "No results found."
@@ -63,14 +74,15 @@ def format_search_results(results: dict, include_content: bool = False) -> str:
 
         kind = result.get("kind", "")
         identifier = result.get("identifier", "")
+        description = result.get("description", "")
+        content_byte_size = result.get("contentByteSize")
 
-        # For Chunk results, extract file path from identifier (format: repo::path::chunk_id)
+        # Extract file path from identifier (format: "{owner/repo}::{path}::{symbol_or_chunk}")
         if not file_path and "::" in identifier:
             parts = identifier.split("::")
             if len(parts) >= 2:
                 file_path = parts[1]
         score = result.get("score") or result.get("relevance")
-        snippet = result.get("snippet") or result.get("content") or result.get("code") or ""
 
         # Format file:line reference
         loc_str = file_path or ""
@@ -85,7 +97,6 @@ def format_search_results(results: dict, include_content: bool = False) -> str:
         if loc_str:
             output.append(f"  File: {loc_str}")
         if identifier and kind != "Chunk":
-            # Show short identifier (strip repo prefix); skip for Chunks (just numeric IDs)
             short_id = identifier.split("::")[-1] if "::" in identifier else identifier
             if short_id != file_path:
                 output.append(f"  Symbol: {short_id}")
@@ -93,8 +104,10 @@ def format_search_results(results: dict, include_content: bool = False) -> str:
             output.append(f"  Source: {source_name}")
         if score is not None:
             output.append(f"  Relevance: {score:.2f}")
-        if snippet.strip():
-            output.append(f"\n```\n{snippet.strip()}\n```")
+        if content_byte_size is not None:
+            output.append(f"  Size: {_format_byte_size(content_byte_size)}")
+        if description:
+            output.append(f"  Description: {description}")
 
     output.append(f"\n({len(items)} results)")
     return "\n".join(output)
@@ -104,12 +117,12 @@ def main():
     """CLI interface for code search."""
     if len(sys.argv) < 3:
         print("Error: Missing required arguments.", file=sys.stderr)
-        print("Usage: python search.py <query> <data_source> [data_source2...] [--mode auto|fast|deep] [--include-content]", file=sys.stderr)
+        print("Usage: python search.py <query> <data_source> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]", file=sys.stderr)
         sys.exit(1)
 
     query = sys.argv[1]
     mode = "auto"
-    include_content = False
+    description_detail = "short"
     data_sources = []
 
     # Parse arguments
@@ -119,9 +132,9 @@ def main():
         if arg == "--mode" and i + 1 < len(sys.argv):
             mode = sys.argv[i + 1]
             i += 2
-        elif arg == "--include-content":
-            include_content = True
-            i += 1
+        elif arg == "--description-detail" and i + 1 < len(sys.argv):
+            description_detail = sys.argv[i + 1]
+            i += 2
         elif arg == "--help":
             print(__doc__)
             sys.exit(0)
@@ -139,18 +152,18 @@ def main():
         print(f"🔍 Searching for: '{query}'", file=sys.stderr)
         print(f"📚 Data sources: {', '.join(data_sources)}", file=sys.stderr)
         print(f"⚙️  Mode: {mode}", file=sys.stderr)
-        if include_content:
-            print(f"📄 Include content: yes", file=sys.stderr)
+        if description_detail != "short":
+            print(f"📝 Description detail: {description_detail}", file=sys.stderr)
         print(file=sys.stderr)
 
         results = client.search(
             query=query,
             data_sources=data_sources,
             mode=mode,
-            include_content=include_content
+            description_detail=description_detail
         )
 
-        print(format_search_results(results, include_content))
+        print(format_search_results(results))
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)

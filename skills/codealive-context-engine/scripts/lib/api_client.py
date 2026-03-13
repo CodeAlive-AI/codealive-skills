@@ -222,7 +222,7 @@ class CodeAliveClient:
         query: str,
         data_sources: List[str],
         mode: str = "auto",
-        include_content: bool = False
+        description_detail: str = "short"
     ) -> Dict[str, Any]:
         """
         Search for code using natural language queries.
@@ -231,18 +231,42 @@ class CodeAliveClient:
             query: Natural language description of what to find
             data_sources: List of repository or workspace names to search
             mode: Search mode - "auto" (default), "fast", or "deep"
-            include_content: Whether to include full file content in results
+            description_detail: Detail level for descriptions - "short" (default) or "full"
 
         Returns:
-            Search results with file paths, line numbers, and code snippets
+            Search results with file paths, line numbers, descriptions, and identifiers
         """
+        detail_map = {"short": "Short", "full": "Full"}
         params = {
             "Query": query,
             "Mode": mode,
-            "IncludeContent": str(include_content).lower(),
+            "IncludeContent": "false",
+            "DescriptionDetail": detail_map.get(description_detail.lower(), "Short"),
             "Names": data_sources
         }
         return self._make_request("GET", "/api/search", params=params)
+
+    def fetch_artifacts(
+        self,
+        identifiers: List[str],
+    ) -> Dict[str, Any]:
+        """
+        Retrieve full content for code artifacts by their identifiers.
+
+        Use after search() to get the complete source code for results you need to inspect.
+        The identifier values come from search results.
+
+        Identifier format: {owner/repo}::{path}::{symbol} (for symbols/chunks)
+                           {owner/repo}::{path} (for files)
+
+        Args:
+            identifiers: List of artifact identifiers from search results (max 20)
+
+        Returns:
+            Dict with 'artifacts' list containing identifier, content, contentByteSize, found
+        """
+        body: Dict[str, Any] = {"identifiers": identifiers}
+        return self._make_request("POST", "/api/search/artifacts", body=body)
 
     def chat(
         self,
@@ -291,7 +315,8 @@ def main():
         print("Usage: python api_client.py <command> [args...]")
         print("Commands:")
         print("  datasources [--all]")
-        print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--include-content]")
+        print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
+        print("  fetch <identifier1> [identifier2...]")
         print("  chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
         sys.exit(1)
 
@@ -306,12 +331,12 @@ def main():
 
         elif command == "search":
             if len(sys.argv) < 4:
-                print("Usage: search <query> <data_source1> [data_source2...] [--mode MODE] [--include-content]")
+                print("Usage: search <query> <data_source1> [data_source2...] [--mode MODE] [--description-detail short|full]")
                 sys.exit(1)
 
             query = sys.argv[2]
             mode = "auto"
-            include_content = False
+            description_detail = "short"
             data_sources = []
 
             i = 3
@@ -320,14 +345,24 @@ def main():
                 if arg == "--mode" and i + 1 < len(sys.argv):
                     mode = sys.argv[i + 1]
                     i += 2
-                elif arg == "--include-content":
-                    include_content = True
-                    i += 1
+                elif arg == "--description-detail" and i + 1 < len(sys.argv):
+                    description_detail = sys.argv[i + 1]
+                    i += 2
                 else:
                     data_sources.append(arg)
                     i += 1
 
-            result = client.search(query, data_sources, mode, include_content)
+            result = client.search(query, data_sources, mode, description_detail)
+            print(json.dumps(result, indent=2))
+
+        elif command == "fetch":
+            if len(sys.argv) < 3:
+                print("Usage: fetch <identifier1> [identifier2...]")
+                sys.exit(1)
+
+            identifiers = sys.argv[2:]
+
+            result = client.fetch_artifacts(identifiers)
             print(json.dumps(result, indent=2))
 
         elif command == "chat":
