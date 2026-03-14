@@ -1,7 +1,7 @@
 {
   "name": "codealive",
   "description": "CodeAlive context engine for semantic code search and AI-powered codebase Q&A. Enables AI coding agents to understand entire codebases beyond just open files — search across all indexed repositories, trace cross-service dependencies, discover usage patterns, and get synthesized answers to architectural questions. Includes a lightweight code exploration subagent, authentication hooks, and multiple search modes (fast lexical, semantic, and deep cross-cutting). Works standalone or alongside the CodeAlive MCP server for direct tool access via the Model Context Protocol.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "CodeAlive AI",
     "email": "hello@codealive.ai"
