@@ -75,6 +75,7 @@ def format_search_results(results: dict) -> str:
         kind = result.get("kind", "")
         identifier = result.get("identifier", "")
         description = result.get("description", "")
+        snippet = result.get("snippet", "")
         content_byte_size = result.get("contentByteSize")
 
         # Extract file path from identifier (format: "{owner/repo}::{path}::{symbol_or_chunk}")
@@ -105,6 +106,8 @@ def format_search_results(results: dict) -> str:
             output.append(f"  Size: {_format_byte_size(content_byte_size)}")
         if description:
             output.append(f"  Description: {description}")
+        elif snippet:
+            output.append(f"  Content (truncated): {snippet}")
 
     output.append(f"\n({len(items)} results)")
     return "\n".join(output)
