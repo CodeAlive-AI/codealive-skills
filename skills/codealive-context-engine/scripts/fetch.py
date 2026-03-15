@@ -32,6 +32,16 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from api_client import CodeAliveClient
 
 
+def _add_line_numbers(content: str, start_line: int = 1) -> str:
+    """Add line numbers to content for easier navigation."""
+    if not content:
+        return content
+    lines = content.split("\n")
+    width = len(str(start_line + len(lines) - 1))
+    numbered = [f"{start_line + i:>{width}} | {line}" for i, line in enumerate(lines)]
+    return "\n".join(numbered)
+
+
 def format_artifacts(data: dict) -> str:
     """Format fetched artifacts for display."""
     artifacts = data.get("artifacts", [])
@@ -54,7 +64,8 @@ def format_artifacts(data: dict) -> str:
         output.append(f"\n{'='*60}")
         output.append(f"📄 {identifier}{size_str}")
         output.append(f"{'='*60}")
-        output.append(content)
+        start_line = artifact.get("startLine") or 1
+        output.append(_add_line_numbers(content, start_line))
 
     if not output:
         return "No artifacts found."
