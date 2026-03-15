@@ -82,7 +82,6 @@ def format_search_results(results: dict) -> str:
             parts = identifier.split("::")
             if len(parts) >= 2:
                 file_path = parts[1]
-        score = result.get("score") or result.get("relevance")
 
         # Format file:line reference
         loc_str = file_path or ""
@@ -102,8 +101,6 @@ def format_search_results(results: dict) -> str:
                 output.append(f"  Symbol: {short_id}")
         if source_name:
             output.append(f"  Source: {source_name}")
-        if score is not None:
-            output.append(f"  Relevance: {score:.2f}")
         if content_byte_size is not None:
             output.append(f"  Size: {_format_byte_size(content_byte_size)}")
         if description:
