@@ -14,7 +14,7 @@ Agent skills and Claude Code plugin for [CodeAlive](https://app.codealive.ai) â€
 
 ### Option 1: Skills (universal â€” 30+ agents)
 
-Works with Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, and [others](https://agentskills.io/).
+Works with Cursor, GitHub Copilot, Windsurf, Gemini CLI, Codex, Goose, Amp, Roo Code, OpenCode, OpenClaw, and [others](https://agentskills.io/).
 
 ```bash
 npx skills add CodeAlive-AI/codealive-skills@codealive-context-engine
@@ -34,6 +34,7 @@ Or copy the `skills/codealive-context-engine` folder into your agent's skills di
 | Amp | `.agents/skills/` | `~/.config/agents/skills/` |
 | Roo Code | `.roo/skills/` | `~/.roo/skills/` |
 | OpenCode | `.opencode/skill/` | `~/.config/opencode/skill/` |
+| OpenClaw | `skills/` | `~/.openclaw/skills/` |
 
 ### Option 2: Claude Code Plugin
 
