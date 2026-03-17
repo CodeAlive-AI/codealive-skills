@@ -77,8 +77,7 @@ def explore_understand(client: CodeAliveClient, query: str, data_sources: List[s
     search_results = client.search(
         query=query,
         data_sources=data_sources,
-        mode="auto",
-        include_content=False
+        mode="auto"
     )
 
     # Show top results
@@ -125,8 +124,7 @@ def explore_dependency(client: CodeAliveClient, query: str, data_sources: List[s
     search_results = client.search(
         query=usage_query,
         data_sources=data_sources,
-        mode="auto",
-        include_content=True
+        mode="auto"
     )
 
     # Ask consultant about internals and best practices
@@ -165,8 +163,7 @@ def explore_pattern(client: CodeAliveClient, query: str, data_sources: List[str]
     search_results = client.search(
         query=f"Show me different implementations of {query}",
         data_sources=data_sources,
-        mode="deep",
-        include_content=True
+        mode="deep"
     )
 
     # Ask consultant to analyze and compare
@@ -205,8 +202,7 @@ def explore_implement(client: CodeAliveClient, query: str, data_sources: List[st
     search_results = client.search(
         query=f"Similar features to {query}, existing implementations",
         data_sources=data_sources,
-        mode="auto",
-        include_content=False
+        mode="auto"
     )
 
     # Ask consultant for implementation guidance
@@ -246,8 +242,7 @@ def explore_debug(client: CodeAliveClient, query: str, data_sources: List[str]) 
     search_results = client.search(
         query=f"Code related to {query}",
         data_sources=data_sources,
-        mode="auto",
-        include_content=True
+        mode="auto"
     )
 
     # Ask consultant to analyze
