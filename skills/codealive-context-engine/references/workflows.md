@@ -107,12 +107,6 @@ python search.py "password reset, email verification, 2FA" my-backend
 
 #### Step 1: Check for Existing Similar Features
 ```bash
-python explore.py "implement:rate limiting" my-backend
-```
-
-OR manually:
-
-```bash
 python search.py "rate limiting, request throttling, API quotas" my-backend workspace:all-backend
 ```
 
@@ -147,12 +141,6 @@ python chat.py "Based on existing patterns in the codebase, what's the recommend
 ### Example: Understanding axios Usage
 
 #### Step 1: Find All Usage
-```bash
-python explore.py "dependency:axios" my-frontend
-```
-
-OR manually:
-
 ```bash
 python search.py "axios import, axios.create, axios usage patterns" my-frontend --include-content
 ```
@@ -192,12 +180,6 @@ python chat.py "Compare axios vs fetch usage in our codebase. When is each used 
 
 #### Step 1: Broad Search Across Workspace
 ```bash
-python explore.py "pattern:error handling across microservices" workspace:backend-team
-```
-
-OR:
-
-```bash
 python search.py "error handling patterns, exception middleware, error logging" workspace:backend-team --mode deep
 ```
 
@@ -227,12 +209,6 @@ python chat.py "What error handling anti-patterns exist in our codebase that we 
 ### Example: Investigating Slow API Responses
 
 #### Step 1: Find Related Code
-```bash
-python explore.py "debug:slow API response times" my-api-service
-```
-
-OR:
-
 ```bash
 python search.py "API performance, slow queries, request handling" my-api-service --include-content
 ```
@@ -338,9 +314,9 @@ python search.py "deployment configuration, CI/CD, build process" new-service
 
 ```bash
 # Feature-by-feature exploration
-python explore.py "understand:user management" new-service
-python explore.py "understand:API integration" new-service
-python explore.py "understand:background jobs" new-service
+python search.py "user management" new-service --description-detail full
+python search.py "API integration" new-service --description-detail full
+python search.py "background jobs" new-service --description-detail full
 ```
 
 **Progressive Learning:** Overview → Core Features → Development Practices → Deep Dives

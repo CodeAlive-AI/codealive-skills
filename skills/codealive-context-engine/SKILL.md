@@ -41,7 +41,6 @@ Do NOT retry the failed script until setup completes successfully.
 | **Search** | `search.py` | Fast | Low | Finding code locations, descriptions, identifiers |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
 | **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
-| **Explore** | `explore.py` | Slow | High | Multi-step discovery workflows |
 
 **Cost guidance:** Search is lightweight and should be the default starting point. Chat with Codebase invokes an LLM on the server side, making it significantly more expensive per call — use it when you need a synthesized, ready-to-use answer rather than raw search results.
 
@@ -91,13 +90,6 @@ python scripts/fetch.py "my-org/backend::src/auth.py::AuthService.login()"
 ```bash
 python scripts/chat.py "Explain the authentication flow" my-backend
 python scripts/chat.py "What about security considerations?" --continue CONV_ID
-```
-
-### 5. Multi-step exploration
-
-```bash
-python scripts/explore.py "understand:user authentication" my-backend
-python scripts/explore.py "debug:slow database queries" my-service
 ```
 
 ## Tool Reference
@@ -157,22 +149,6 @@ python scripts/chat.py <question> <data_sources...> [options]
 | `--continue <id>` | Continue a previous conversation (saves context and cost) |
 
 **Conversation continuity:** Every response includes a `conversation_id`. Pass it with `--continue` for follow-up questions — this preserves context and is cheaper than starting fresh.
-
-### `explore.py` — Smart Exploration
-
-Combines search and chat-with-codebase in multi-step workflows. Useful for complex investigations.
-
-```bash
-python scripts/explore.py <mode:query> <data_sources...>
-```
-
-| Mode | Purpose |
-|------|---------|
-| `understand:<topic>` | Search + explanation |
-| `dependency:<library>` | Library usage and internals |
-| `pattern:<pattern>` | Cross-project pattern discovery |
-| `implement:<feature>` | Find similar features for guidance |
-| `debug:<issue>` | Trace symptom to root cause |
 
 ## Data Sources
 
@@ -240,7 +216,7 @@ This skill works standalone, but delivers the best experience when combined with
 | **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
 | **MCP server** | Direct `codebase_search`, `fetch_artifacts`, `codebase_consultant`, `get_data_sources` tools |
 
-When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided multi-step workflows like `explore.py`.
+When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided workflows.
 
 ## Detailed Guides
 

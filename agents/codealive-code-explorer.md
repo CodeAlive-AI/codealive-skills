@@ -70,5 +70,5 @@ Return a structured summary:
 - Always include file paths and line numbers in findings
 - If the first search returns no useful results, try at least 2 different query phrasings before concluding
 - If authentication fails, report the error and stop — do not retry
-- Do not use chat.py or explore.py — only search.py (to keep costs low)
+- Do not use chat.py — only search.py (to keep costs low)
 - Keep your response concise — the goal is to save the caller's context window

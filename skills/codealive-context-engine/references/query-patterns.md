@@ -221,11 +221,6 @@ Use when:
 2. `search.py` to find specific implementations
 3. `chat.py` again with more context
 
-**Explorer for Complex Workflows:**
-- Use `explore.py` for multi-step exploration
-- Automatically combines search and consultation
-- Specialized modes for different scenarios
-
 ## Anti-Patterns (Avoid These)
 
 ### Too Vague
