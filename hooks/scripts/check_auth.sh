@@ -16,7 +16,7 @@ fi
 
 if [ -z "$KEY" ]; then
   # Find setup.py relative to plugin root
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
+  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}"
   SETUP_PATH="${PLUGIN_ROOT}/skills/codealive-context-engine/setup.py"
   BASE_URL="${CODEALIVE_BASE_URL:-https://app.codealive.ai}"
   BASE_URL="${BASE_URL%/}"
