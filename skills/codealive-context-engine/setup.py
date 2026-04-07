@@ -19,10 +19,34 @@ import subprocess
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_NAME = "codealive-api-key"
 DEFAULT_BASE_URL = "https://app.codealive.ai"
+
+
+def normalize_base_url(base_url: str | None) -> str:
+    """Normalize a CodeAlive base URL to the deployment origin.
+
+    Accepts both deployment origins and URLs that already end with `/api`.
+    """
+    raw = (base_url or DEFAULT_BASE_URL).strip()
+    if not raw:
+        raw = DEFAULT_BASE_URL
+
+    if "://" not in raw:
+        normalized = raw.rstrip("/")
+        if normalized.endswith("/api"):
+            normalized = normalized[:-4]
+        return normalized
+
+    parts = urllib.parse.urlsplit(raw)
+    path = parts.path.rstrip("/")
+    if path.endswith("/api"):
+        path = path[:-4]
+
+    return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment)).rstrip("/")
 
 
 # ── Credential store helpers ──────────────────────────────────────────────────
@@ -135,7 +159,8 @@ def store_key(api_key: str) -> bool:
 
 def verify_key(api_key: str, base_url: str = DEFAULT_BASE_URL) -> tuple[bool, str]:
     """Test the API key by fetching data sources. Returns (success, message)."""
-    url = f"{base_url}/api/datasources/alive"
+    normalized_base_url = normalize_base_url(base_url)
+    url = f"{normalized_base_url}/api/datasources/ready"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -176,7 +201,7 @@ def main():
             sys.exit(0)
 
     system = platform.system()
-    base_url = os.getenv("CODEALIVE_BASE_URL", DEFAULT_BASE_URL)
+    base_url = normalize_base_url(os.getenv("CODEALIVE_BASE_URL", DEFAULT_BASE_URL))
 
     print()
     print("  CodeAlive Context Engine — Setup")

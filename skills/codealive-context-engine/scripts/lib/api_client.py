@@ -4,6 +4,7 @@ Handles authentication and HTTP requests to the CodeAlive API.
 """
 
 import os
+import urllib.parse
 import sys
 import json
 import urllib.request
@@ -90,6 +91,26 @@ class CodeAliveClient:
         finally:
             advapi32.CredFree(cred_ptr)
 
+    @staticmethod
+    def _normalize_base_url(base_url: Optional[str]) -> str:
+        """Normalize a CodeAlive base URL to the deployment origin."""
+        raw = (base_url or "https://app.codealive.ai").strip()
+        if not raw:
+            raw = "https://app.codealive.ai"
+
+        if "://" not in raw:
+            normalized = raw.rstrip("/")
+            if normalized.endswith("/api"):
+                normalized = normalized[:-4]
+            return normalized
+
+        parts = urllib.parse.urlsplit(raw)
+        path = parts.path.rstrip("/")
+        if path.endswith("/api"):
+            path = path[:-4]
+
+        return urllib.parse.urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment)).rstrip("/")
+
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         """
         Initialize the CodeAlive API client.
@@ -103,6 +124,7 @@ class CodeAliveClient:
         """
         self.api_key = api_key or os.getenv("CODEALIVE_API_KEY") or self._get_key_from_keychain()
         if not self.api_key:
+            resolved_base_url = self._normalize_base_url(base_url or os.getenv("CODEALIVE_BASE_URL", "https://app.codealive.ai"))
             skill_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             setup_path = os.path.join(skill_dir, "setup.py")
             raise ValueError(
@@ -115,10 +137,10 @@ class CodeAliveClient:
                 "  Ask the user to paste their API key, then run:\n"
                 f"  python {setup_path} --key THE_KEY\n"
                 "\n"
-                "Get API key at: https://app.codealive.ai/settings/api-keys"
+                f"Get API key at: {resolved_base_url}/settings/api-keys"
             )
 
-        self.base_url = base_url or os.getenv("CODEALIVE_BASE_URL", "https://app.codealive.ai")
+        self.base_url = self._normalize_base_url(base_url or os.getenv("CODEALIVE_BASE_URL", "https://app.codealive.ai"))
         self.timeout = 60
 
     def _make_request(
@@ -214,7 +236,7 @@ class CodeAliveClient:
         Returns:
             List of data source objects with id, name, description, type, etc.
         """
-        endpoint = "/api/datasources/alive" if alive_only else "/api/datasources/all"
+        endpoint = "/api/datasources/ready" if alive_only else "/api/datasources/all"
         return self._make_request("GET", endpoint)
 
     def search(
