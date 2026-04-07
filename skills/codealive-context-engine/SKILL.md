@@ -205,6 +205,8 @@ cmdkey /generic:codealive-api-key /user:codealive /pass:"YOUR_API_KEY"
 export CODEALIVE_BASE_URL="https://your-instance.example.com"
 ```
 
+For self-hosted CodeAlive, use your deployment origin. `https://your-instance.example.com` is preferred, but `https://your-instance.example.com/api` is also accepted and normalized automatically.
+
 Get API keys at: https://app.codealive.ai/settings/api-keys
 
 ## Using with CodeAlive MCP Server

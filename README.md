@@ -74,7 +74,7 @@ The API key is resolved in this order:
 
 The key is stored once and shared across all agents on the same machine.
 
-**Self-hosted instance:** set `CODEALIVE_BASE_URL` env var to your instance URL.
+**Self-hosted instance:** set `CODEALIVE_BASE_URL` to your deployment origin, for example `https://codealive.yourcompany.com`. The setup script accepts both `https://host` and `https://host/api`, but the origin form is preferred.
 
 ## Usage
 
