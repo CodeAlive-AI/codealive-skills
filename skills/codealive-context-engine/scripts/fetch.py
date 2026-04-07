@@ -42,6 +42,47 @@ def _add_line_numbers(content: str, start_line: int = 1) -> str:
     return "\n".join(numbered)
 
 
+def _has_any_calls(relationships: dict) -> bool:
+    """True if a relationships preview has at least one outgoing/incoming call."""
+    for key in ("outgoingCallsCount", "incomingCallsCount"):
+        count = relationships.get(key)
+        if count and count > 0:
+            return True
+    return False
+
+
+def _format_relationships_preview(relationships: dict) -> list:
+    """Format the inline preview of call relationships returned with each artifact.
+
+    Returns a list of output lines (possibly empty).
+    """
+    lines: list = []
+
+    for direction, key, label in (
+        ("outgoing", "outgoingCalls", "↗ outgoing_calls"),
+        ("incoming", "incomingCalls", "↙ incoming_calls"),
+    ):
+        count = relationships.get(f"{key}Count")
+        if count is None:
+            continue
+        calls = relationships.get(key) or []
+
+        lines.append(f"  {label} ({count}):")
+        if not calls:
+            lines.append("    (none in preview)")
+            continue
+        for call in calls:
+            ident = call.get("identifier", "")
+            summary = call.get("summary")
+            if summary:
+                lines.append(f"    • {ident}")
+                lines.append(f"        📝 {summary}")
+            else:
+                lines.append(f"    • {ident}")
+
+    return lines
+
+
 def format_artifacts(data: dict) -> str:
     """Format fetched artifacts for display."""
     artifacts = data.get("artifacts", [])
@@ -50,6 +91,7 @@ def format_artifacts(data: dict) -> str:
 
     output = []
     count = 0
+    has_any_relationships = False
 
     for artifact in artifacts:
         content = artifact.get("content")
@@ -67,10 +109,30 @@ def format_artifacts(data: dict) -> str:
         start_line = artifact.get("startLine") or 1
         output.append(_add_line_numbers(content, start_line))
 
+        relationships = artifact.get("relationships")
+        if relationships is not None:
+            preview_lines = _format_relationships_preview(relationships)
+            if preview_lines:
+                output.append("\n--- relationships (preview) ---")
+                output.extend(preview_lines)
+                if _has_any_calls(relationships):
+                    has_any_relationships = True
+
     if not output:
         return "No artifacts found."
 
     output.append(f"\n({count} artifact(s))")
+
+    if has_any_relationships:
+        output.append(
+            "\n💡 Hint: the relationships shown above are a preview (up to 3 calls "
+            "per direction).\n"
+            "   To see the full call graph, inheritance, or references for an "
+            "artifact, run:\n"
+            "     python relationships.py <identifier> "
+            "[--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly]"
+        )
+
     return "\n".join(output)
 
 

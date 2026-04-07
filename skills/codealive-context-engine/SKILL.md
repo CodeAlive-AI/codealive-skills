@@ -40,14 +40,24 @@ Do NOT retry the failed script until setup completes successfully.
 | **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces |
 | **Search** | `search.py` | Fast | Low | Finding code locations, descriptions, identifiers |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
+| **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
 | **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
 
 **Cost guidance:** Search is lightweight and should be the default starting point. Chat with Codebase invokes an LLM on the server side, making it significantly more expensive per call — use it when you need a synthesized, ready-to-use answer rather than raw search results.
 
-**Three-step workflow:**
+**Three-step workflow (search → triage → load real content):**
 1. **Search** — find relevant code locations with descriptions and identifiers
-2. **Review** — examine the descriptions to understand what each result contains
-3. **Get content** — use `fetch.py` for external repos or `Read()` for local files
+2. **Triage** — use `description` ONLY to decide which results are worth a closer
+   look. It is a pointer, NOT the source of truth. Do not draw conclusions from it.
+3. **Get real content** — for every artifact you decide is relevant:
+    - External repos (no local access): `python fetch.py <identifier>`
+    - Current working repo: read the file at the shown path with your editor's
+      file-read tool
+    Treat only that real `content` as ground truth.
+
+**Optional drill-down:** once you know an artifact matters, run
+`python relationships.py <identifier>` to expand its call graph, inheritance,
+or references.
 
 ## When to Use
 
@@ -85,7 +95,20 @@ python scripts/search.py "authentication flow" my-repo --description-detail full
 python scripts/fetch.py "my-org/backend::src/auth.py::AuthService.login()"
 ```
 
-### 4. Chat with codebase (slower, richer answers)
+### 4. Drill into an artifact's relationships (optional)
+
+```bash
+# Full call graph (default)
+python scripts/relationships.py "my-org/backend::src/auth.py::AuthService.login()"
+
+# Inheritance hierarchy for a class
+python scripts/relationships.py "my-org/backend::src/models.py::User" --profile inheritanceOnly
+
+# Calls + inheritance, raise the per-type cap
+python scripts/relationships.py "my-org/backend::src/svc.py::Service" --profile allRelevant --max-count 200
+```
+
+### 5. Chat with codebase (slower, richer answers)
 
 ```bash
 python scripts/chat.py "Explain the authentication flow" my-backend
@@ -118,7 +141,12 @@ python scripts/search.py <query> <data_sources...> [options]
 | `--description-detail short` | Default. Brief description of each result |
 | `--description-detail full` | More detailed description of each result |
 
-**Getting content:** Search returns descriptions and identifiers. For the current repo, use `Read()` on the file paths. For external repos, use `fetch.py` with the identifiers.
+**`description` is a triage pointer ONLY** — it tells you which artifacts are
+worth a closer look. It is NOT the source of truth and you must NOT draw
+conclusions from it. For every result you consider relevant, load the real
+source: use `fetch.py <identifier>` for external repos, or your editor's
+file-read tool on the path for repos in the current working directory. Treat
+only that real `content` as ground truth.
 
 ### `fetch.py` — Fetch Artifact Content
 
@@ -133,6 +161,32 @@ python scripts/fetch.py <identifier1> [identifier2...]
 | Max identifiers per request | 20 |
 | Identifiers source | `identifier` field from search results |
 | Identifier format | `{owner/repo}::{path}::{symbol}` (symbols), `{owner/repo}::{path}` (files) |
+
+For function-like artifacts the response includes a small **relationships
+preview** (up to 3 outgoing/incoming calls per direction). To see the full
+call graph, inheritance, or references, run `relationships.py` with the
+artifact's identifier.
+
+### `relationships.py` — Drill into an Artifact's Relationship Graph
+
+Returns the full call graph (incoming/outgoing calls), inheritance hierarchy
+(ancestors/descendants), or symbol references for a single artifact. This is
+the drill-down tool — use it AFTER `search.py` or `fetch.py` once you have an
+identifier and want to understand how the artifact relates to the rest of the
+codebase.
+
+```bash
+python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--profile callsOnly` | Default. Outgoing + incoming calls |
+| `--profile inheritanceOnly` | Ancestors + descendants |
+| `--profile allRelevant` | Calls + inheritance (4 groups) |
+| `--profile referencesOnly` | Symbol references |
+| `--max-count N` | Max related artifacts per relationship type (1–1000, default 50) |
+| `--json` | Emit the raw JSON response instead of the formatted view |
 
 ### `chat.py` — Chat with Codebase
 
@@ -216,7 +270,7 @@ This skill works standalone, but delivers the best experience when combined with
 | Component | What it provides |
 |-----------|-----------------|
 | **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
-| **MCP server** | Direct `codebase_search`, `fetch_artifacts`, `codebase_consultant`, `get_data_sources` tools |
+| **MCP server** | Direct `codebase_search`, `fetch_artifacts`, `get_artifact_relationships`, `codebase_consultant`, `get_data_sources` tools |
 
 When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided workflows.
 

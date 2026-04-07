@@ -114,3 +114,69 @@ def test_api_client_search_fetch_and_chat_use_expected_endpoints():
     assert fetch_result["artifacts"][0]["identifier"] == "org/repo::src/auth.py::AuthService"
     assert chat_result["answer"] == "Auth is handled in AuthService."
     assert chat_result["conversation_id"] == "conv_123"
+
+
+def test_api_client_get_artifact_relationships_posts_expected_body():
+    received_bodies: list = []
+
+    def relationships_handler(request):
+        body = json.loads(request["body"])
+        received_bodies.append(body)
+        return 200, {
+            "sourceIdentifier": body["identifier"],
+            "profile": body["profile"],
+            "found": True,
+            "relationships": [
+                {
+                    "relationType": "OutgoingCalls",
+                    "totalCount": 2,
+                    "returnedCount": 2,
+                    "truncated": False,
+                    "items": [
+                        {
+                            "identifier": "org/repo::src/db.py::query",
+                            "filePath": "src/db.py",
+                            "startLine": 42,
+                            "shortSummary": "Runs SQL",
+                        },
+                        {
+                            "identifier": "org/repo::src/cache.py::get",
+                            "filePath": "src/cache.py",
+                            "startLine": 10,
+                        },
+                    ],
+                }
+            ],
+        }, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/search/artifact-relationships"): relationships_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_artifact_relationships(
+            "org/repo::src/svc.py::Service",
+            profile="allRelevant",
+            max_count_per_type=25,
+        )
+
+    # Body translates MCP-friendly profile to backend enum + carries max-count cap
+    assert received_bodies == [
+        {
+            "identifier": "org/repo::src/svc.py::Service",
+            "profile": "AllRelevant",
+            "maxCountPerType": 25,
+        }
+    ]
+    assert result["found"] is True
+    assert result["relationships"][0]["relationType"] == "OutgoingCalls"
+    assert len(result["relationships"][0]["items"]) == 2
+
+
+def test_api_client_get_artifact_relationships_rejects_unknown_profile():
+    client = CodeAliveClient(api_key="skill-test-key", base_url="https://test.local")
+    try:
+        client.get_artifact_relationships("id", profile="bogus")
+    except ValueError as e:
+        assert "Unsupported profile" in str(e)
+    else:
+        raise AssertionError("ValueError was not raised for unknown profile")

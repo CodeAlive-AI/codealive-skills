@@ -366,6 +366,29 @@ python search.py "payment processing" my-backend
 python chat.py "Explain the payment processing implementation" my-backend
 ```
 
+### `description` is a triage pointer, not the source of truth
+`search.py` returns a `description` for every result. Use it ONLY to decide
+*which* artifacts deserve a closer look — never as the basis for your
+understanding of the code. For each relevant result, immediately load the real
+source via `fetch.py <identifier>` (external repos) or your editor's file-read
+tool (current working repo). Treat only that real `content` as ground truth.
+
+### Drill into relationships when you need the call graph
+Once you've located an artifact via `search.py` or fetched it via `fetch.py`,
+use `relationships.py` to expand it:
+```bash
+# Default: full outgoing + incoming call graph
+python relationships.py "my-org/backend::src/auth.py::AuthService.login()"
+
+# Class hierarchy
+python relationships.py "my-org/backend::src/models.py::User" --profile inheritanceOnly
+
+# Everything (calls + inheritance), bigger cap
+python relationships.py "my-org/backend::src/svc.py::Service" --profile allRelevant --max-count 200
+```
+The `fetch.py` response shows up to 3 calls per direction as a preview;
+`relationships.py` is how you escape that preview cap and switch profiles.
+
 ### Iterative Refinement
 Start broad → Review results → Refine query → Repeat
 

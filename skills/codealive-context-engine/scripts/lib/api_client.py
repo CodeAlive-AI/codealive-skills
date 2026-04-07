@@ -285,10 +285,65 @@ class CodeAliveClient:
             identifiers: List of artifact identifiers from search results (max 20)
 
         Returns:
-            Dict with 'artifacts' list containing identifier, content, contentByteSize, found
+            Dict with 'artifacts' list. Each artifact has identifier, content,
+            contentByteSize, startLine. For function-like artifacts the response
+            also contains a `relationships` preview (up to 3 outgoing/incoming
+            calls per direction). Use ``get_artifact_relationships()`` to retrieve
+            the full list and other relationship profiles.
         """
         body: Dict[str, Any] = {"identifiers": identifiers}
         return self._make_request("POST", "/api/search/artifacts", body=body)
+
+    def get_artifact_relationships(
+        self,
+        identifier: str,
+        profile: str = "callsOnly",
+        max_count_per_type: int = 50,
+    ) -> Dict[str, Any]:
+        """
+        Retrieve relationship groups for a single artifact by profile.
+
+        Use this to drill down into an artifact's call graph, inheritance
+        hierarchy, or symbol references after locating it via search() or
+        fetch_artifacts().
+
+        Args:
+            identifier: Fully qualified artifact identifier (from search/fetch results).
+            profile: Relationship profile to expand. One of:
+                     - "callsOnly" (default): outgoing and incoming calls
+                     - "inheritanceOnly": ancestors and descendants
+                     - "allRelevant": calls + inheritance (4 groups)
+                     - "referencesOnly": symbol references
+            max_count_per_type: Max related artifacts per relationship type
+                                (1–1000, default 50).
+
+        Returns:
+            Dict with sourceIdentifier, profile, found, and a list of
+            ``relationships`` groups. Each group has relationType, totalCount,
+            returnedCount, truncated, and an ``items`` list of related artifacts
+            (identifier, filePath, startLine, shortSummary).
+        """
+        profile_map = {
+            "callsOnly": "CallsOnly",
+            "inheritanceOnly": "InheritanceOnly",
+            "allRelevant": "AllRelevant",
+            "referencesOnly": "ReferencesOnly",
+        }
+        api_profile = profile_map.get(profile)
+        if api_profile is None:
+            supported = ", ".join(profile_map.keys())
+            raise ValueError(
+                f'Unsupported profile "{profile}". Use one of: {supported}'
+            )
+
+        body: Dict[str, Any] = {
+            "identifier": identifier,
+            "profile": api_profile,
+            "maxCountPerType": max_count_per_type,
+        }
+        return self._make_request(
+            "POST", "/api/search/artifact-relationships", body=body
+        )
 
     def chat(
         self,
@@ -339,6 +394,7 @@ def main():
         print("  datasources [--all]")
         print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
         print("  fetch <identifier1> [identifier2...]")
+        print("  relationships <identifier> [--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly] [--max-count N]")
         print("  chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
         sys.exit(1)
 
@@ -385,6 +441,30 @@ def main():
             identifiers = sys.argv[2:]
 
             result = client.fetch_artifacts(identifiers)
+            print(json.dumps(result, indent=2))
+
+        elif command == "relationships":
+            if len(sys.argv) < 3:
+                print("Usage: relationships <identifier> [--profile PROFILE] [--max-count N]")
+                sys.exit(1)
+
+            identifier = sys.argv[2]
+            profile = "callsOnly"
+            max_count = 50
+
+            i = 3
+            while i < len(sys.argv):
+                arg = sys.argv[i]
+                if arg == "--profile" and i + 1 < len(sys.argv):
+                    profile = sys.argv[i + 1]
+                    i += 2
+                elif arg == "--max-count" and i + 1 < len(sys.argv):
+                    max_count = int(sys.argv[i + 1])
+                    i += 2
+                else:
+                    i += 1
+
+            result = client.get_artifact_relationships(identifier, profile, max_count)
             print(json.dumps(result, indent=2))
 
         elif command == "chat":

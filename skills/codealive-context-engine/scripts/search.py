@@ -20,6 +20,12 @@ Examples:
 
     # Get full descriptions for more context
     python search.py "authentication flow" my-repo --description-detail full
+
+IMPORTANT: `description` is a triage pointer ONLY. It tells you which results are
+worth a closer look — it is NOT the source of truth. For every artifact you decide
+is relevant you MUST load the real source via `fetch.py <identifier>` (external
+repos) or your editor's file-read tool on the path (current working repo). Treat
+only that real `content` as ground truth.
 """
 
 import sys
@@ -110,6 +116,16 @@ def format_search_results(results: dict) -> str:
             output.append(f"  Content (truncated): {snippet}")
 
     output.append(f"\n({len(items)} results)")
+    output.append(
+        "\n💡 Hint: `Description` is only a pointer for triage — DO NOT base your "
+        "understanding on it.\n"
+        "   For every result that looks relevant, load the real source:\n"
+        "     • External repos: `python fetch.py <identifier>`\n"
+        "     • Current working repo: read the file at the shown path\n"
+        "   Treat only the real `content` as ground truth.\n"
+        "   To explore an artifact's call graph or inheritance, run "
+        "`python relationships.py <identifier>`."
+    )
     return "\n".join(output)
 
 
