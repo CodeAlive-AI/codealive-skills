@@ -38,7 +38,8 @@ Do NOT retry the failed script until setup completes successfully.
 | Tool | Script | Speed | Cost | Best For |
 |------|--------|-------|------|----------|
 | **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces |
-| **Search** | `search.py` | Fast | Low | Finding code locations, descriptions, identifiers |
+| **Semantic Search** | `search.py` | Fast | Low | Finding relevant artifacts by meaning |
+| **Grep Search** | `grep.py` | Fast | Low | Exact text and regex matches with line previews |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
 | **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
 | **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
@@ -85,8 +86,9 @@ python scripts/datasources.py
 
 ```bash
 python scripts/search.py "JWT token validation" my-backend
-python scripts/search.py "error handling patterns" workspace:platform-team --mode deep
-python scripts/search.py "authentication flow" my-repo --description-detail full
+python scripts/search.py "authentication flow" my-repo --path src/auth --ext .py
+python scripts/grep.py "AuthService" my-repo
+python scripts/grep.py "auth\\(" my-repo --regex
 ```
 
 ### 3. Fetch full content (for external repos)
@@ -135,11 +137,9 @@ python scripts/search.py <query> <data_sources...> [options]
 
 | Option | Description |
 |--------|-------------|
-| `--mode auto` | Default. Intelligent semantic search — use 80% of the time |
-| `--mode fast` | Quick lexical search for known terms |
-| `--mode deep` | Exhaustive search for complex cross-cutting queries. Resource-intensive |
-| `--description-detail short` | Default. Brief description of each result |
-| `--description-detail full` | More detailed description of each result |
+| `--max-results N` | Optional cap for the number of returned artifacts |
+| `--path PATH` | Repo-relative path or directory scope (repeatable) |
+| `--ext EXT` | File extension scope such as `.py` or `.ts` (repeatable) |
 
 **`description` is a triage pointer ONLY** — it tells you which artifacts are
 worth a closer look. It is NOT the source of truth and you must NOT draw
@@ -147,6 +147,25 @@ conclusions from it. For every result you consider relevant, load the real
 source: use `fetch.py <identifier>` for external repos, or your editor's
 file-read tool on the path for repos in the current working directory. Treat
 only that real `content` as ground truth.
+
+### `grep.py` — Exact / Regex Search
+
+Returns artifact-level matches with line previews. Use this when the pattern
+itself matters more than semantic similarity.
+
+```bash
+python scripts/grep.py <query> <data_sources...> [--regex] [--max-results N] [--path PATH] [--ext EXT]
+```
+
+| Option | Description |
+|--------|-------------|
+| `--regex` | Interpret the query as a regex pattern |
+| `--max-results N` | Optional cap for the number of returned artifacts |
+| `--path PATH` | Repo-relative path or directory scope (repeatable) |
+| `--ext EXT` | File extension scope such as `.py` or `.ts` (repeatable) |
+
+Line previews are still search evidence, not source of truth. Use `fetch.py`
+or your local file-read tool before drawing conclusions about behavior.
 
 ### `fetch.py` — Fetch Artifact Content
 
@@ -270,7 +289,7 @@ This skill works standalone, but delivers the best experience when combined with
 | Component | What it provides |
 |-----------|-----------------|
 | **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
-| **MCP server** | Direct `codebase_search`, `fetch_artifacts`, `get_artifact_relationships`, `codebase_consultant`, `get_data_sources` tools |
+| **MCP server** | Direct `semantic_search`, `grep_search`, `fetch_artifacts`, `get_artifact_relationships`, `codebase_consultant`, `get_data_sources` tools |
 
 When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided workflows.
 

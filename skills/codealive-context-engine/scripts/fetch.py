@@ -15,7 +15,7 @@ Examples:
     # Fetch multiple artifacts
     python fetch.py "my-org/backend::src/auth.py::login" "my-org/backend::src/utils.py::helper"
 
-Identifiers come from codebase_search results (the `identifier` field).
+Identifiers come from semantic/grep search results (the `identifier` field).
 The format is: {owner/repo}::{path}::{symbol} (for symbols/chunks)
                {owner/repo}::{path} (for files)
 

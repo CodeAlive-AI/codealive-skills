@@ -116,6 +116,55 @@ def test_api_client_search_fetch_and_chat_use_expected_endpoints():
     assert chat_result["conversation_id"] == "conv_123"
 
 
+def test_api_client_canonical_search_endpoints_use_scope_params():
+    def semantic_handler(request):
+        assert "Query=auth" in request["path"]
+        assert "Names=backend" in request["path"]
+        assert "Paths=src%2Fauth.py" in request["path"]
+        assert "Extensions=.py" in request["path"]
+        assert "MaxResults=7" in request["path"]
+        return 200, {
+            "results": [
+                {
+                    "identifier": "org/repo::src/auth.py::AuthService",
+                    "location": {"path": "src/auth.py"},
+                }
+            ]
+        }, {}
+
+    def grep_handler(request):
+        assert "Query=AuthService" in request["path"]
+        assert "Regex=true" in request["path"]
+        return 200, {
+            "results": [
+                {
+                    "identifier": "org/repo::src/auth.py",
+                    "matchCount": 1,
+                    "matches": [{"lineNumber": 12, "lineText": "class AuthService:"}],
+                }
+            ]
+        }, {}
+
+    with mock_codealive_server(
+        {
+            ("GET", "/api/search/semantic?Query=auth&Names=backend&Paths=src%2Fauth.py&Extensions=.py&MaxResults=7"): semantic_handler,
+            ("GET", "/api/search/grep?Query=AuthService&Names=backend&Regex=true"): grep_handler,
+        }
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        semantic_result = client.semantic_search(
+            "auth",
+            ["backend"],
+            paths=["src/auth.py"],
+            extensions=[".py"],
+            max_results=7,
+        )
+        grep_result = client.grep_search("AuthService", ["backend"], regex=True)
+
+    assert semantic_result["results"][0]["identifier"] == "org/repo::src/auth.py::AuthService"
+    assert grep_result["results"][0]["matchCount"] == 1
+
+
 def test_api_client_get_artifact_relationships_posts_expected_body():
     received_bodies: list = []
 
