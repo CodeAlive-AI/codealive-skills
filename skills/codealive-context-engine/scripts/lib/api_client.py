@@ -268,6 +268,52 @@ class CodeAliveClient:
         }
         return self._make_request("GET", "/api/search", params=params)
 
+    def semantic_search(
+        self,
+        query: str,
+        data_sources: List[str],
+        paths: Optional[List[str]] = None,
+        extensions: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """Search indexed artifacts semantically using the canonical API."""
+        params: Dict[str, Any] = {
+            "Query": query,
+            "Names": data_sources,
+        }
+        if paths:
+            params["Paths"] = paths
+        if extensions:
+            params["Extensions"] = extensions
+        if max_results is not None:
+            params["MaxResults"] = max_results
+
+        return self._make_request("GET", "/api/search/semantic", params=params)
+
+    def grep_search(
+        self,
+        query: str,
+        data_sources: List[str],
+        paths: Optional[List[str]] = None,
+        extensions: Optional[List[str]] = None,
+        max_results: Optional[int] = None,
+        regex: bool = False,
+    ) -> Dict[str, Any]:
+        """Search indexed artifacts by exact text or regex using the canonical API."""
+        params: Dict[str, Any] = {
+            "Query": query,
+            "Names": data_sources,
+            "Regex": str(regex).lower(),
+        }
+        if paths:
+            params["Paths"] = paths
+        if extensions:
+            params["Extensions"] = extensions
+        if max_results is not None:
+            params["MaxResults"] = max_results
+
+        return self._make_request("GET", "/api/search/grep", params=params)
+
     def fetch_artifacts(
         self,
         identifiers: List[str],
@@ -393,6 +439,8 @@ def main():
         print("Commands:")
         print("  datasources [--all]")
         print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
+        print("  semantic-search <query> <data_source1> [data_source2...] [--path PATH] [--ext EXT] [--max-results N]")
+        print("  grep-search <query> <data_source1> [data_source2...] [--regex] [--path PATH] [--ext EXT] [--max-results N]")
         print("  fetch <identifier1> [identifier2...]")
         print("  relationships <identifier> [--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly] [--max-count N]")
         print("  chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
@@ -431,6 +479,83 @@ def main():
                     i += 1
 
             result = client.search(query, data_sources, mode, description_detail)
+            print(json.dumps(result, indent=2))
+
+        elif command == "semantic-search":
+            if len(sys.argv) < 4:
+                print("Usage: semantic-search <query> <data_source1> [data_source2...] [--path PATH] [--ext EXT] [--max-results N]")
+                sys.exit(1)
+
+            query = sys.argv[2]
+            data_sources = []
+            paths = []
+            extensions = []
+            max_results = None
+
+            i = 3
+            while i < len(sys.argv):
+                arg = sys.argv[i]
+                if arg == "--path" and i + 1 < len(sys.argv):
+                    paths.append(sys.argv[i + 1])
+                    i += 2
+                elif arg == "--ext" and i + 1 < len(sys.argv):
+                    extensions.append(sys.argv[i + 1])
+                    i += 2
+                elif arg == "--max-results" and i + 1 < len(sys.argv):
+                    max_results = int(sys.argv[i + 1])
+                    i += 2
+                else:
+                    data_sources.append(arg)
+                    i += 1
+
+            result = client.semantic_search(
+                query,
+                data_sources,
+                paths=paths or None,
+                extensions=extensions or None,
+                max_results=max_results,
+            )
+            print(json.dumps(result, indent=2))
+
+        elif command == "grep-search":
+            if len(sys.argv) < 4:
+                print("Usage: grep-search <query> <data_source1> [data_source2...] [--regex] [--path PATH] [--ext EXT] [--max-results N]")
+                sys.exit(1)
+
+            query = sys.argv[2]
+            data_sources = []
+            paths = []
+            extensions = []
+            max_results = None
+            regex = False
+
+            i = 3
+            while i < len(sys.argv):
+                arg = sys.argv[i]
+                if arg == "--regex":
+                    regex = True
+                    i += 1
+                elif arg == "--path" and i + 1 < len(sys.argv):
+                    paths.append(sys.argv[i + 1])
+                    i += 2
+                elif arg == "--ext" and i + 1 < len(sys.argv):
+                    extensions.append(sys.argv[i + 1])
+                    i += 2
+                elif arg == "--max-results" and i + 1 < len(sys.argv):
+                    max_results = int(sys.argv[i + 1])
+                    i += 2
+                else:
+                    data_sources.append(arg)
+                    i += 1
+
+            result = client.grep_search(
+                query,
+                data_sources,
+                paths=paths or None,
+                extensions=extensions or None,
+                max_results=max_results,
+                regex=regex,
+            )
             print(json.dumps(result, indent=2))
 
         elif command == "fetch":

@@ -72,7 +72,7 @@ def test_datasources_search_fetch_and_chat_scripts_work_against_mock_backend():
                 200,
                 [{"id": "repo-1", "name": "backend", "type": "Repository", "description": "Main backend"}],
             ),
-            ("GET", "/api/search?Query=auth&Mode=auto&IncludeContent=false&DescriptionDetail=Short&Names=backend"): search_handler,
+            ("GET", "/api/search/semantic?Query=auth&Names=backend"): search_handler,
             ("POST", "/api/search/artifacts"): fetch_handler,
             ("POST", "/api/chat/completions"): chat_handler,
         }
@@ -97,7 +97,7 @@ def test_datasources_search_fetch_and_chat_scripts_work_against_mock_backend():
     # search must surface the "description is only a triage pointer" hint
     assert "triage" in search.stdout
     assert "fetch.py" in search.stdout
-    assert "ground truth" in search.stdout
+    assert "before drawing conclusions" in search.stdout
 
     assert fetch.returncode == 0, fetch.stderr
     assert "AuthService.login" in fetch.stdout
@@ -114,7 +114,7 @@ def test_datasources_search_fetch_and_chat_scripts_work_against_mock_backend():
 
     assert [request["path"] for request in requests] == [
         "/api/datasources/ready",
-        "/api/search?Query=auth&Mode=auto&IncludeContent=false&DescriptionDetail=Short&Names=backend",
+        "/api/search/semantic?Query=auth&Names=backend",
         "/api/search/artifacts",
         "/api/chat/completions",
     ]

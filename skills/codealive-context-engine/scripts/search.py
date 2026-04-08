@@ -1,61 +1,33 @@
 #!/usr/bin/env python3
 """
-CodeAlive Search - Semantic code search across indexed repositories
+CodeAlive Semantic Search - semantic retrieval across indexed repositories.
 
 Usage:
-    python search.py "How is authentication handled?" my-repo --mode auto
-    python search.py "JWT token validation" workspace:backend-team
-    python search.py "React hooks patterns" react lodash --mode deep
-    python search.py "user registration" my-repo --description-detail full
-
-Examples:
-    # Search current project
-    python search.py "user registration logic" my-backend-repo
-
-    # Search across workspace (multiple repos)
-    python search.py "error handling patterns" workspace:platform-team
-
-    # Deep search for complex queries
-    python search.py "How do services communicate?" workspace:microservices --mode deep
-
-    # Get full descriptions for more context
-    python search.py "authentication flow" my-repo --description-detail full
-
-IMPORTANT: `description` is a triage pointer ONLY. It tells you which results are
-worth a closer look — it is NOT the source of truth. For every artifact you decide
-is relevant you MUST load the real source via `fetch.py <identifier>` (external
-repos) or your editor's file-read tool on the path (current working repo). Treat
-only that real `content` as ground truth.
+    python search.py "How is authentication handled?" my-repo
+    python search.py "JWT token validation" workspace:backend-team --max-results 15
+    python search.py "user registration" my-repo --path src/auth --ext .py
 """
 
 import sys
-import json
 from pathlib import Path
 
-# Add lib directory to path
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
 from api_client import CodeAliveClient
 
 
 def _format_byte_size(size_bytes: int) -> str:
-    """Format byte size to human-readable string."""
     if size_bytes < 1024:
         return f"{size_bytes} B"
-    elif size_bytes < 1024 * 1024:
+    if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
-    else:
-        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
 
 
 def format_search_results(results: dict) -> str:
-    """Format search results for display."""
     if not results:
         return "No results found."
 
-    output = []
-
-    # Handle different response structures
     if isinstance(results, list):
         items = results
     elif "results" in results:
@@ -66,15 +38,14 @@ def format_search_results(results: dict) -> str:
     if not items:
         return "No results found."
 
+    output = []
     for idx, result in enumerate(items, 1):
-        # Extract location (API returns nested structure)
         location = result.get("location", {})
-        file_path = location.get("path") or result.get("filePath") or result.get("file") or result.get("path")
+        file_path = location.get("path") or result.get("filePath") or result.get("path")
         range_info = location.get("range", {})
-        start_line = range_info.get("start", {}).get("line") or result.get("startLine") or result.get("lineNumber")
+        start_line = range_info.get("start", {}).get("line") or result.get("startLine")
         end_line = range_info.get("end", {}).get("line") or result.get("endLine")
 
-        # Extract data source name
         ds = result.get("dataSource", {})
         source_name = ds.get("name") if isinstance(ds, dict) else ds
 
@@ -84,13 +55,11 @@ def format_search_results(results: dict) -> str:
         snippet = result.get("snippet", "")
         content_byte_size = result.get("contentByteSize")
 
-        # Extract file path from identifier (format: "{owner/repo}::{path}::{symbol_or_chunk}")
         if not file_path and "::" in identifier:
             parts = identifier.split("::")
             if len(parts) >= 2:
                 file_path = parts[1]
 
-        # Format file:line reference
         loc_str = file_path or ""
         if loc_str and start_line and start_line > 0:
             if end_line and end_line != start_line and end_line > 0:
@@ -98,7 +67,6 @@ def format_search_results(results: dict) -> str:
             else:
                 loc_str = f"{file_path}:{start_line}"
 
-        # Compact output: one block per result
         output.append(f"\n--- Result #{idx} [{kind}] ---")
         if loc_str:
             output.append(f"  File: {loc_str}")
@@ -113,43 +81,44 @@ def format_search_results(results: dict) -> str:
         if description:
             output.append(f"  Description: {description}")
         elif snippet:
-            output.append(f"  Content (truncated): {snippet}")
+            output.append(f"  Snippet: {snippet}")
 
     output.append(f"\n({len(items)} results)")
     output.append(
-        "\n💡 Hint: `Description` is only a pointer for triage — DO NOT base your "
-        "understanding on it.\n"
-        "   For every result that looks relevant, load the real source:\n"
-        "     • External repos: `python fetch.py <identifier>`\n"
-        "     • Current working repo: read the file at the shown path\n"
-        "   Treat only the real `content` as ground truth.\n"
-        "   To explore an artifact's call graph or inheritance, run "
-        "`python relationships.py <identifier>`."
+        "\nHint: descriptions are triage pointers only. Fetch the full source "
+        "for relevant identifiers with `python fetch.py <identifier>` or read "
+        "the local file before drawing conclusions."
     )
     return "\n".join(output)
 
 
 def main():
-    """CLI interface for code search."""
     if len(sys.argv) < 3:
         print("Error: Missing required arguments.", file=sys.stderr)
-        print("Usage: python search.py <query> <data_source> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]", file=sys.stderr)
+        print(
+            "Usage: python search.py <query> <data_source> [data_source2...] "
+            "[--max-results N] [--path PATH] [--ext EXT]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     query = sys.argv[1]
-    mode = "auto"
-    description_detail = "short"
     data_sources = []
+    paths = []
+    extensions = []
+    max_results = None
 
-    # Parse arguments
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg == "--mode" and i + 1 < len(sys.argv):
-            mode = sys.argv[i + 1]
+        if arg == "--max-results" and i + 1 < len(sys.argv):
+            max_results = int(sys.argv[i + 1])
             i += 2
-        elif arg == "--description-detail" and i + 1 < len(sys.argv):
-            description_detail = sys.argv[i + 1]
+        elif arg == "--path" and i + 1 < len(sys.argv):
+            paths.append(sys.argv[i + 1])
+            i += 2
+        elif arg == "--ext" and i + 1 < len(sys.argv):
+            extensions.append(sys.argv[i + 1])
             i += 2
         elif arg == "--help":
             print(__doc__)
@@ -159,30 +128,36 @@ def main():
             i += 1
 
     if not data_sources:
-        print("Error: At least one data source is required. Run datasources.py to see available sources.", file=sys.stderr)
+        print(
+            "Error: At least one data source is required. Run datasources.py to see available sources.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     try:
         client = CodeAliveClient()
 
-        print(f"🔍 Searching for: '{query}'", file=sys.stderr)
-        print(f"📚 Data sources: {', '.join(data_sources)}", file=sys.stderr)
-        print(f"⚙️  Mode: {mode}", file=sys.stderr)
-        if description_detail != "short":
-            print(f"📝 Description detail: {description_detail}", file=sys.stderr)
+        print(f"Semantic search: '{query}'", file=sys.stderr)
+        print(f"Data sources: {', '.join(data_sources)}", file=sys.stderr)
+        if max_results is not None:
+            print(f"Max results: {max_results}", file=sys.stderr)
+        if paths:
+            print(f"Paths: {', '.join(paths)}", file=sys.stderr)
+        if extensions:
+            print(f"Extensions: {', '.join(extensions)}", file=sys.stderr)
         print(file=sys.stderr)
 
-        results = client.search(
+        results = client.semantic_search(
             query=query,
             data_sources=data_sources,
-            mode=mode,
-            description_detail=description_detail
+            paths=paths or None,
+            extensions=extensions or None,
+            max_results=max_results,
         )
 
         print(format_search_results(results))
-
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 

@@ -81,8 +81,10 @@ The key is stored once and shared across all agents on the same machine.
 Start your agent and ask naturally:
 
 - *"How is authentication implemented?"*
+- *"Find the exact regex or string match for this token parser"*
 - *"Show me error handling patterns across services"*
 - *"Find similar features to guide my implementation"*
+- *"Show me who calls this handler and what it depends on"*
 
 No special commands needed — the agent picks up the skill automatically.
 
