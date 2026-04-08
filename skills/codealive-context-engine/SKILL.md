@@ -1,6 +1,6 @@
 ---
 name: codealive-context-engine
-description: Semantic code search and AI-powered codebase Q&A across indexed repositories. Use when understanding code beyond local files, exploring dependencies, discovering cross-project patterns, planning features, debugging, or onboarding. Queries like "How does X work?", "Show me Y patterns", "How is library Z used?". Provides search (fast, returns file locations and descriptions) and chat-with-codebase (slower, costs more, but returns synthesized answers).
+description: Semantic code search and AI-powered codebase Q&A across indexed repositories. Use when understanding code beyond local files, exploring dependencies, discovering cross-project patterns, planning features, debugging, or onboarding. Queries like "How does X work?", "Show me Y patterns", "How is library Z used?". The default path is semantic search plus grep search; chat-with-codebase is slower, more expensive, and usually secondary.
 ---
 
 # CodeAlive Context Engine
@@ -44,7 +44,9 @@ Do NOT retry the failed script until setup completes successfully.
 | **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
 | **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
 
-**Cost guidance:** Search is lightweight and should be the default starting point. Chat with Codebase invokes an LLM on the server side, making it significantly more expensive per call — use it when you need a synthesized, ready-to-use answer rather than raw search results.
+**Cost guidance:** `semantic_search` and `grep_search` are the default starting point. Chat with Codebase invokes an LLM on the server side, can take up to 30 seconds, and is significantly more expensive per call — use it only when you need a synthesized, ready-to-use answer rather than raw search results.
+
+**Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `search.py`, `grep.py`, `fetch.py`, `relationships.py`, and local file reads. `chat.py` is optional synthesis, not the default path.
 
 **Three-step workflow (search → triage → load real content):**
 1. **Search** — find relevant code locations with descriptions and identifiers
@@ -110,7 +112,7 @@ python scripts/relationships.py "my-org/backend::src/models.py::User" --profile 
 python scripts/relationships.py "my-org/backend::src/svc.py::Service" --profile allRelevant --max-count 200
 ```
 
-### 5. Chat with codebase (slower, richer answers)
+### 5. Chat with codebase (slower, optional synthesis)
 
 ```bash
 python scripts/chat.py "Explain the authentication flow" my-backend
@@ -211,7 +213,7 @@ python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
 
 Sends your question to an AI consultant that has full context of the indexed codebase. Returns synthesized, ready-to-use answers. Supports conversation continuity for follow-ups.
 
-**This is more expensive than search** because it runs an LLM inference on the server side. Prefer search when you just need to locate code. Use chat when you need explanations, comparisons, or architectural analysis.
+**This is more expensive than search** because it runs an LLM inference on the server side. Prefer search when you just need to locate code. Use chat when you need explanations, comparisons, or architectural analysis after search. It can take up to 30 seconds.
 
 ```bash
 python scripts/chat.py <question> <data_sources...> [options]
@@ -289,7 +291,7 @@ This skill works standalone, but delivers the best experience when combined with
 | Component | What it provides |
 |-----------|-----------------|
 | **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
-| **MCP server** | Direct `semantic_search`, `grep_search`, `fetch_artifacts`, `get_artifact_relationships`, `codebase_consultant`, `get_data_sources` tools |
+| **MCP server** | Direct `semantic_search`, `grep_search`, `fetch_artifacts`, `get_artifact_relationships`, `chat`, `get_data_sources` tools plus deprecated aliases |
 
 When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided workflows.
 

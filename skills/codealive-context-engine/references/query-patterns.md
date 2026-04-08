@@ -298,7 +298,7 @@ Use when:
 1. **Use natural language** - CodeAlive understands intent, not just keywords
 2. **Be specific about context** - Include domain/layer info (API, database, frontend)
 3. **Leverage workspaces** - Search across multiple repos for patterns
-4. **Start with chat** - Ask "How does X work?" before searching
+4. **Start with search** - Use semantic search first, then grep when the literal pattern matters; only use chat after you have evidence and still need synthesis
 5. **Iterate** - Use follow-up questions to drill deeper
 6. **Combine with local tools** - CodeAlive for discovery, Read for details
 7. **Think like a librarian** - Focus on "what" and "why", not "where"

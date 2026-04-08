@@ -28,24 +28,24 @@ Review output to understand:
 - What workspaces group related repos
 - Which data sources to use for exploration
 
-### Step 2: Get Architectural Overview
-```bash
-python chat.py "Provide an architectural overview of this codebase. What are the main components, how do they interact, and what's the tech stack?" my-backend-repo
-```
-
-### Step 3: Understand Entry Points
+### Step 2: Understand Entry Points
 ```bash
 python search.py "main application entry point, startup initialization" my-backend-repo
 ```
 
-### Step 4: Explore Key Features
+### Step 3: Explore Key Features
 ```bash
-python chat.py "What are the main features/capabilities of this system?" my-backend-repo
+python search.py "main features, core capabilities, major services" my-backend-repo
+```
+
+### Step 4: Get Architectural Overview Only If Needed
+```bash
+python chat.py "Provide an architectural overview of this codebase. What are the main components, how do they interact, and what's the tech stack?" my-backend-repo
 ```
 
 ### Step 5: Understand Data Models
 ```bash
-python search.py "database models, schemas, entity definitions" my-backend-repo --mode auto
+python search.py "database models, schemas, entity definitions" my-backend-repo
 ```
 
 **Progressive Discovery:**
@@ -61,17 +61,18 @@ python search.py "database models, schemas, entity definitions" my-backend-repo 
 
 ### Example: Understanding User Authentication
 
-#### Step 1: Start with High-Level Question
+#### Step 1: Start with Search
+```bash
+python search.py "user authentication, login flow, session management" my-backend
+python grep.py "refresh token" my-backend
+```
+
+#### Step 2: Use Chat Only If You Still Need Synthesis
 ```bash
 python chat.py "How is user authentication implemented? Describe the flow from login to session management" my-backend
 ```
 
 Save conversation_id for follow-up questions.
-
-#### Step 2: Find Entry Points
-```bash
-python search.py "user login endpoint, authentication API" my-backend
-```
 
 #### Step 3: Trace Through Layers
 ```bash
