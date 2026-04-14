@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-CodeAlive Grep Search - exact text or regex search across indexed repositories.
+CodeAlive Grep Search — exact text or regex search across indexed repositories.
+
+Finds code containing a specific string or pattern. Use when you know the
+exact identifier, error message, config key, or regex to match.
+For concept-based discovery, use search.py instead.
 
 Usage:
     python grep.py "AuthService" my-repo
@@ -19,7 +23,13 @@ from api_client import CodeAliveClient
 def format_grep_results(results: dict) -> str:
     items = results.get("results", []) if isinstance(results, dict) else []
     if not items:
-        return "No results found."
+        return (
+            "No grep matches found. This does NOT mean the code doesn't exist.\n"
+            "Try: (1) check case — grep is case-sensitive by default; "
+            "(2) use search.py for concept-based discovery if unsure of exact naming; "
+            "(3) check that the data source is correct (run datasources.py); "
+            "(4) remove --path/--ext filters if used."
+        )
 
     output = []
     for idx, result in enumerate(items, 1):

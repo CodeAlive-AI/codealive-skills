@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-CodeAlive Semantic Search - semantic retrieval across indexed repositories.
+CodeAlive Semantic Search — the default discovery tool.
+
+Finds code by meaning (concepts, behavior, architecture), not by exact text.
+Use when you can describe WHAT the code does but don't know exact names.
+For exact identifiers, literals, or regex, use grep.py instead.
 
 Usage:
     python search.py "How is authentication handled?" my-repo
@@ -36,7 +40,13 @@ def format_search_results(results: dict) -> str:
         items = [results]
 
     if not items:
-        return "No results found."
+        return (
+            "No results found. This does NOT mean the code doesn't exist.\n"
+            "Try: (1) rephrase with synonyms or broader terms; "
+            "(2) use grep.py if you know a specific identifier or literal string; "
+            "(3) check that the data source is correct (run datasources.py); "
+            "(4) remove --path/--ext filters if used."
+        )
 
     output = []
     for idx, result in enumerate(items, 1):

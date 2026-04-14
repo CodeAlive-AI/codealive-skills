@@ -38,8 +38,8 @@ Do NOT retry the failed script until setup completes successfully.
 | Tool | Script | Speed | Cost | Best For |
 |------|--------|-------|------|----------|
 | **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces |
-| **Semantic Search** | `search.py` | Fast | Low | Finding relevant artifacts by meaning |
-| **Grep Search** | `grep.py` | Fast | Low | Exact text and regex matches with line previews |
+| **Semantic Search** | `search.py` | Fast | Low | Default discovery — finds code by meaning (concepts, behavior, architecture) |
+| **Grep Search** | `grep.py` | Fast | Low | Finds code containing a specific string or regex (identifiers, literals, patterns) |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
 | **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
 | **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
@@ -64,11 +64,17 @@ or references.
 
 ## When to Use
 
-**Use this skill for semantic understanding:**
+**Semantic search (default) — you describe behavior or concept:**
 - "How is authentication implemented?"
 - "Show me error handling patterns across services"
 - "How does this library work internally?"
 - "Find similar features to guide my implementation"
+
+**Grep search — you know the exact text:**
+- "Find all usages of `RepositoryDeleted`"
+- "Where is `ConnectionString` configured?"
+- "Search for `TODO: fix` across the codebase"
+- Error messages, URLs, config keys, import paths, regex patterns
 
 **Use local file tools instead for:**
 - Finding specific files by name or pattern
@@ -129,9 +135,11 @@ python scripts/datasources.py --all        # All (including processing)
 python scripts/datasources.py --json       # JSON output
 ```
 
-### `search.py` — Semantic Code Search
+### `search.py` — Semantic Code Search (default discovery tool)
 
-Returns file paths, line numbers, descriptions, identifiers, and content sizes. Fast and cheap.
+The default starting point. Finds code by WHAT it does — concepts, behavior,
+architecture — not by exact text. Use when you can describe what you're
+looking for but don't know the exact names in the codebase.
 
 ```bash
 python scripts/search.py <query> <data_sources...> [options]
@@ -150,10 +158,11 @@ source: use `fetch.py <identifier>` for external repos, or your editor's
 file-read tool on the path for repos in the current working directory. Treat
 only that real `content` as ground truth.
 
-### `grep.py` — Exact / Regex Search
+### `grep.py` — Exact Text / Regex Search
 
-Returns artifact-level matches with line previews. Use this when the pattern
-itself matters more than semantic similarity.
+Finds code containing a specific string or regex pattern. Use when you know
+the exact text to look for: identifiers, error messages, config keys, URLs,
+domain events, import paths, TODO comments.
 
 ```bash
 python scripts/grep.py <query> <data_sources...> [--regex] [--max-results N] [--path PATH] [--ext EXT]
