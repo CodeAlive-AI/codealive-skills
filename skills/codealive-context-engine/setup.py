@@ -26,6 +26,15 @@ SERVICE_NAME = "codealive-api-key"
 DEFAULT_BASE_URL = "https://app.codealive.ai"
 
 
+def _is_wsl() -> bool:
+    """Detect if running inside Windows Subsystem for Linux."""
+    try:
+        with open("/proc/version", "r") as f:
+            return "microsoft" in f.read().lower()
+    except OSError:
+        return False
+
+
 def normalize_base_url(base_url: str | None) -> str:
     """Normalize a CodeAlive base URL to the deployment origin.
 
@@ -73,6 +82,11 @@ def read_existing_key() -> str | None:
             )
             if r.returncode == 0 and r.stdout.strip():
                 return r.stdout.strip()
+            # WSL fallback: try Windows Credential Manager
+            if _is_wsl():
+                wsl_key = _read_wsl_credential()
+                if wsl_key:
+                    return wsl_key
         elif system == "Windows":
             return _read_windows_credential()
     except Exception:
@@ -121,6 +135,54 @@ def _read_windows_credential() -> str | None:
         advapi32.CredFree(cred_ptr)
 
 
+def _read_wsl_credential() -> str | None:
+    """Read credential from Windows Credential Manager via powershell.exe (WSL only)."""
+    ps_script = f"""
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class CredReader {{
+    [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    static extern bool CredRead(string target, int type, int flags, out IntPtr cred);
+    [DllImport("advapi32.dll")]
+    static extern void CredFree(IntPtr cred);
+    [StructLayout(LayoutKind.Sequential)]
+    struct CREDENTIAL {{
+        public int Flags; public int Type;
+        [MarshalAs(UnmanagedType.LPWStr)] public string TargetName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string Comment;
+        public long LastWritten; public int CredentialBlobSize;
+        public IntPtr CredentialBlob; public int Persist;
+        public int AttributeCount; public IntPtr Attributes;
+        [MarshalAs(UnmanagedType.LPWStr)] public string TargetAlias;
+        [MarshalAs(UnmanagedType.LPWStr)] public string UserName;
+    }}
+    public static string Read(string target) {{
+        IntPtr ptr;
+        if (!CredRead(target, 1, 0, out ptr)) return null;
+        try {{
+            var c = Marshal.PtrToStructure<CREDENTIAL>(ptr);
+            if (c.CredentialBlobSize > 0)
+                return Marshal.PtrToStringUni(c.CredentialBlob, c.CredentialBlobSize / 2);
+            return null;
+        }} finally {{ CredFree(ptr); }}
+    }}
+}}
+'@
+[CredReader]::Read('{SERVICE_NAME}')
+"""
+    try:
+        r = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+    except (FileNotFoundError, Exception):
+        pass
+    return None
+
+
 def store_key(api_key: str) -> bool:
     """Store key in the OS credential store. Returns True on success."""
     system = platform.system()
@@ -137,6 +199,14 @@ def store_key(api_key: str) -> bool:
             )
             return r.returncode == 0
         elif system == "Linux":
+            if _is_wsl():
+                # Store in Windows Credential Manager via cmdkey
+                r = subprocess.run(
+                    ["cmd.exe", "/c", "cmdkey", f"/generic:{SERVICE_NAME}", "/user:codealive", f"/pass:{api_key}"],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if r.returncode == 0:
+                    return True
             r = subprocess.run(
                 ["secret-tool", "store", "--label=CodeAlive API Key", "service", SERVICE_NAME],
                 input=api_key, capture_output=True, text=True, timeout=10,
@@ -252,24 +322,38 @@ def main():
     print_step(3, "Storing API key...")
 
     if env_mode:
-        shell = os.getenv("SHELL", "")
-        profile = "~/.zshrc" if "zsh" in shell else "~/.bashrc"
-        print(f"      Add this to your {profile}:")
-        print(f'      export CODEALIVE_API_KEY="{api_key}"')
-        print()
-        print(f"      Then reload: source {profile}")
+        if system == "Windows":
+            print(f"      Run in PowerShell (persists for current user):")
+            print(f'      [Environment]::SetEnvironmentVariable("CODEALIVE_API_KEY", "{api_key}", "User")')
+            print()
+            print(f"      Or in cmd.exe:")
+            print(f'      setx CODEALIVE_API_KEY "{api_key}"')
+        else:
+            shell = os.getenv("SHELL", "")
+            profile = "~/.zshrc" if "zsh" in shell else "~/.bashrc"
+            print(f"      Add this to your {profile}:")
+            print(f'      export CODEALIVE_API_KEY="{api_key}"')
+            print()
+            print(f"      Then reload: source {profile}")
     else:
         stored = store_key(api_key)
         if stored:
-            store_name = {"Darwin": "macOS Keychain", "Linux": "secret-tool", "Windows": "Credential Manager"}.get(system, "credential store")
+            if system == "Linux" and _is_wsl():
+                store_name = "Windows Credential Manager (via WSL)"
+            else:
+                store_name = {"Darwin": "macOS Keychain", "Linux": "secret-tool", "Windows": "Credential Manager"}.get(system, "credential store")
             print(f"      Saved to {store_name}.")
         else:
             # Fallback: suggest env var
             print(f"      Could not save to OS credential store.")
-            shell = os.getenv("SHELL", "")
-            profile = "~/.zshrc" if "zsh" in shell else "~/.bashrc"
-            print(f"      Add this to your {profile} instead:")
-            print(f'      export CODEALIVE_API_KEY="{api_key}"')
+            if system == "Windows":
+                print(f"      Run in PowerShell instead:")
+                print(f'      [Environment]::SetEnvironmentVariable("CODEALIVE_API_KEY", "{api_key}", "User")')
+            else:
+                shell = os.getenv("SHELL", "")
+                profile = "~/.zshrc" if "zsh" in shell else "~/.bashrc"
+                print(f"      Add this to your {profile} instead:")
+                print(f'      export CODEALIVE_API_KEY="{api_key}"')
 
     print_ready()
 

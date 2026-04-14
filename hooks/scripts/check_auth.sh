@@ -14,6 +14,17 @@ if [ -z "$KEY" ] && command -v secret-tool &>/dev/null; then
   KEY=$(secret-tool lookup service codealive-api-key 2>/dev/null || true)
 fi
 
+# Try Windows Credential Manager from WSL (key stored via cmdkey).
+# We can only check existence here — the actual value is read by
+# api_client.py via powershell.exe P/Invoke at runtime.
+if [ -z "$KEY" ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  if command -v cmd.exe &>/dev/null; then
+    if cmd.exe /c "cmdkey /list:codealive-api-key" 2>/dev/null | grep -qi "codealive-api-key"; then
+      KEY="windows-credential-store"
+    fi
+  fi
+fi
+
 if [ -z "$KEY" ]; then
   # Find setup.py relative to plugin root
   PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$(dirname "$0")")")}"

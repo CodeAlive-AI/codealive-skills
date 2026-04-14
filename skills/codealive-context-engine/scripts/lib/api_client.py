@@ -38,6 +38,10 @@ class CodeAliveClient:
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     return result.stdout.strip()
+                # WSL fallback: read from Windows Credential Manager
+                wsl_key = CodeAliveClient._read_wsl_credential("codealive-api-key")
+                if wsl_key:
+                    return wsl_key
             elif system == "Windows":
                 return CodeAliveClient._read_windows_credential("codealive-api-key")
         except (FileNotFoundError, Exception):
@@ -90,6 +94,67 @@ class CodeAliveClient:
             return None
         finally:
             advapi32.CredFree(cred_ptr)
+
+    @staticmethod
+    def _is_wsl() -> bool:
+        """Detect if running inside Windows Subsystem for Linux."""
+        try:
+            with open("/proc/version", "r") as f:
+                return "microsoft" in f.read().lower()
+        except OSError:
+            return False
+
+    @staticmethod
+    def _read_wsl_credential(target_name: str) -> Optional[str]:
+        """Read a credential from Windows Credential Manager via powershell.exe (WSL only)."""
+        if not CodeAliveClient._is_wsl():
+            return None
+        import subprocess
+        # Use PowerShell with inline C# to call CredReadW — no extra modules needed.
+        ps_script = f"""
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class CredReader {{
+    [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+    static extern bool CredRead(string target, int type, int flags, out IntPtr cred);
+    [DllImport("advapi32.dll")]
+    static extern void CredFree(IntPtr cred);
+    [StructLayout(LayoutKind.Sequential)]
+    struct CREDENTIAL {{
+        public int Flags; public int Type;
+        [MarshalAs(UnmanagedType.LPWStr)] public string TargetName;
+        [MarshalAs(UnmanagedType.LPWStr)] public string Comment;
+        public long LastWritten; public int CredentialBlobSize;
+        public IntPtr CredentialBlob; public int Persist;
+        public int AttributeCount; public IntPtr Attributes;
+        [MarshalAs(UnmanagedType.LPWStr)] public string TargetAlias;
+        [MarshalAs(UnmanagedType.LPWStr)] public string UserName;
+    }}
+    public static string Read(string target) {{
+        IntPtr ptr;
+        if (!CredRead(target, 1, 0, out ptr)) return null;
+        try {{
+            var c = Marshal.PtrToStructure<CREDENTIAL>(ptr);
+            if (c.CredentialBlobSize > 0)
+                return Marshal.PtrToStringUni(c.CredentialBlob, c.CredentialBlobSize / 2);
+            return null;
+        }} finally {{ CredFree(ptr); }}
+    }}
+}}
+'@
+[CredReader]::Read('{target_name}')
+"""
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout.strip()
+        except (FileNotFoundError, Exception):
+            pass
+        return None
 
     @staticmethod
     def _normalize_base_url(base_url: Optional[str]) -> str:
