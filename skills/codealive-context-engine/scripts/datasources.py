@@ -76,12 +76,12 @@ def format_datasources(datasources: list, as_json: bool = False) -> str:
 
     output.append("\n" + "="*80)
     output.append("\n💡 Usage:")
-    output.append("   • Use names with search.py and chat.py")
+    output.append("   • Use names with search.py, grep.py, and fetch.py")
     output.append("   • Workspaces search ALL repos in the workspace")
     output.append("   • Combine multiple data sources for broader search")
     output.append("\n📖 Examples:")
     output.append("   python search.py 'auth logic' my-backend")
-    output.append("   python chat.py 'How does caching work?' workspace:platform-team")
+    output.append("   python grep.py 'AuthService' my-backend")
 
     return "\n".join(output)
 

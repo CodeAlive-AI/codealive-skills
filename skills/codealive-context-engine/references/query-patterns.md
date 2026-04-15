@@ -171,55 +171,42 @@ Start broad, then narrow based on results:
 3. Specific: "JWT validation middleware error handling"
 ```
 
-### Search Mode Selection
+### Choosing Between search.py and grep.py
 
-**Auto Mode** (default) - Use for most queries:
-- Balanced speed and depth
-- Intelligent semantic understanding
-- Good for 80% of use cases
+**Use `search.py` (semantic search)** — the default:
+- You describe behavior or a concept: "authentication middleware", "retry logic"
+- You don't know exact names in the codebase
+- Architectural or cross-cutting questions
+- Good for 80% of discovery tasks
 
-**Fast Mode** - Use for obvious/simple queries:
-- Known function/class names
-- Exact technical terms
-- Quick lookups
+**Use `grep.py` (exact text / regex):**
+- Known identifiers: class names, function names, config keys
+- Literal strings: error messages, URLs, import paths
+- Finding ALL occurrences of a symbol across the codebase
+- Regex patterns: `def test_.*async`, `Status\.(Alive|Failed)`
 
-**Deep Mode** - Use sparingly for complex queries:
-- Cross-cutting concerns
-- Abstract architectural questions
-- When auto mode misses results
-- Resource-intensive - use only when needed
+### Getting Full Source Code
 
-### Include Content Decision
+Search results contain a `description` field — this is a **triage pointer only**.
+Do NOT reason about code based on descriptions. For every relevant result:
 
-**include_content=false** (default for current repo):
-```
-Use when:
-- Searching your current working repository
-- Results are file paths for further investigation
-- You'll use file read tool to examine files
-- Want concise results
-```
+- **Current working repo:** read the file at the shown path with your editor's file-read tool
+- **External repos (no local access):** `python fetch.py <identifier>`
 
-**include_content=true** (for external repos):
-```
-Use when:
-- Searching external dependencies/libraries
-- No file system access to the repository
-- Need immediate code visibility
-- Analyzing patterns across repos
-```
+Treat only the real `content` as ground truth.
 
 ### Combining Tools
 
-**Search → Read → Ask Pattern:**
-1. `search.py` to find relevant files
-2. Use file read tool to examine specific files
-3. `chat.py` to ask questions about what you found
+**Search → Triage → Fetch → Relationships Pattern (recommended):**
+1. `search.py` or `grep.py` to find relevant code locations
+2. Review results — pick the most relevant by path, kind, description
+3. `fetch.py <identifier>` to load full source for external repos (or `Read` for local)
+4. `relationships.py <identifier>` to expand call graph, inheritance, or references
 
-**Ask → Search → Ask Pattern:**
-1. `chat.py` for architectural overview
-2. `search.py` to find specific implementations
-3. `chat.py` again with more context
+**Grep → Fetch → Relationships Pattern (when you know exact names):**
+1. `grep.py "ExactClassName"` to find all occurrences
+2. `fetch.py` for the definition you want to inspect
+3. `relationships.py` to see who calls it and what it calls
 
 ## Anti-Patterns (Avoid These)
 
@@ -298,7 +285,8 @@ Use when:
 1. **Use natural language** - CodeAlive understands intent, not just keywords
 2. **Be specific about context** - Include domain/layer info (API, database, frontend)
 3. **Leverage workspaces** - Search across multiple repos for patterns
-4. **Start with search** - Use semantic search first, then grep when the literal pattern matters; only use chat after you have evidence and still need synthesis
-5. **Iterate** - Use follow-up questions to drill deeper
-6. **Combine with local tools** - CodeAlive for discovery, Read for details
-7. **Think like a librarian** - Focus on "what" and "why", not "where"
+4. **Start with search, not chat** - Use `search.py` for concepts, `grep.py` for exact text; always fetch real source before reasoning
+5. **Fetch before concluding** - Descriptions are triage hints; use `fetch.py` or local `Read` to get ground truth
+6. **Drill into relationships** - Use `relationships.py` to trace call graphs and inheritance after finding a key artifact
+7. **Combine with local tools** - CodeAlive for discovery, `Read` for local details, `fetch.py` for external repos
+8. **Think like a librarian** - Focus on "what" and "why", not "where"

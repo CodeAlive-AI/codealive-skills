@@ -38,9 +38,13 @@ python search.py "main application entry point, startup initialization" my-backe
 python search.py "main features, core capabilities, major services" my-backend-repo
 ```
 
-### Step 4: Get Architectural Overview Only If Needed
+### Step 4: Fetch and Inspect Key Artifacts
 ```bash
-python chat.py "Provide an architectural overview of this codebase. What are the main components, how do they interact, and what's the tech stack?" my-backend-repo
+# Fetch full source for the most relevant search results
+python fetch.py "my-org/backend::src/app.py::main()"
+
+# Trace relationships to understand dependencies
+python relationships.py "my-org/backend::src/app.py::main()" --profile allRelevant
 ```
 
 ### Step 5: Understand Data Models
@@ -67,12 +71,11 @@ python search.py "user authentication, login flow, session management" my-backen
 python grep.py "refresh token" my-backend
 ```
 
-#### Step 2: Use Chat Only If You Still Need Synthesis
+#### Step 2: Fetch Full Source for Top Results
 ```bash
-python chat.py "How is user authentication implemented? Describe the flow from login to session management" my-backend
+# Load actual source for the most relevant identifiers from Step 1
+python fetch.py "my-org/backend::src/auth/handler.py::login()"
 ```
-
-Save conversation_id for follow-up questions.
 
 #### Step 3: Trace Through Layers
 ```bash
@@ -86,9 +89,10 @@ python search.py "authentication service, user validation logic" my-backend
 python search.py "user model, credentials storage" my-backend
 ```
 
-#### Step 4: Understand Security Measures
+#### Step 4: Trace Relationships
 ```bash
-python chat.py "What security measures are in place for authentication? (hashing, tokens, sessions)" --continue CONV_ID
+# Understand what the auth handler calls and who calls it
+python relationships.py "my-org/backend::src/auth/handler.py::login()" --profile allRelevant
 ```
 
 #### Step 5: Find Related Features
@@ -113,7 +117,8 @@ python search.py "rate limiting, request throttling, API quotas" my-backend work
 
 #### Step 2: Understand Middleware Patterns
 ```bash
-python chat.py "What middleware patterns are used in this codebase? How are cross-cutting concerns like logging and authentication handled?" my-backend
+python search.py "middleware patterns, cross-cutting concerns, logging, authentication" my-backend
+python fetch.py "my-org/backend::src/middleware/auth.py::AuthMiddleware"
 ```
 
 #### Step 3: Find Integration Points
@@ -126,12 +131,13 @@ python search.py "middleware registration, request pipeline configuration" my-ba
 python search.py "express-rate-limit, rate-limiter-flexible, existing rate limiting libraries" workspace:all-backend
 ```
 
-#### Step 5: Get Implementation Guidance
+#### Step 5: Trace Integration Points
 ```bash
-python chat.py "Based on existing patterns in the codebase, what's the recommended way to implement rate limiting? What components do I need to modify?" --continue CONV_ID
+# Understand how existing middleware integrates
+python relationships.py "my-org/backend::src/middleware/auth.py::AuthMiddleware" --profile callsOnly
 ```
 
-**Output:** Clear implementation plan with file locations and integration points
+**Output:** Clear picture of middleware patterns, integration points, and file locations
 
 ---
 
@@ -143,7 +149,8 @@ python chat.py "Based on existing patterns in the codebase, what's the recommend
 
 #### Step 1: Find All Usage
 ```bash
-python search.py "axios import, axios.create, axios usage patterns" my-frontend --include-content
+python grep.py "axios" my-frontend --ext .ts --ext .js
+python search.py "axios usage patterns, HTTP client configuration" my-frontend
 ```
 
 #### Step 2: Understand Configuration
@@ -153,20 +160,21 @@ python search.py "axios configuration, base URL, default headers, interceptors" 
 
 #### Step 3: Learn Internal Implementation
 ```bash
-python chat.py "How does axios interceptor mechanism work internally? Show me the implementation details" axios-library
+# Fetch the actual interceptor implementation (requires axios to be indexed)
+python search.py "interceptor mechanism implementation" axios-library
+python fetch.py "axios::lib/core/Axios.js::Axios.request()"
 ```
-
-Note: Requires axios repository to be indexed
 
 #### Step 4: Find Best Practices
 ```bash
-python chat.py "What are the axios usage patterns in this codebase? Any best practices or common pitfalls?" my-frontend
+python search.py "axios best practices, error handling, retry" my-frontend
+python fetch.py "my-org/frontend::src/api/client.ts::createApiClient()"
 ```
 
 #### Step 5: Compare with Alternatives
 ```bash
 python search.py "fetch API, got, node-fetch, HTTP client libraries" workspace:all-frontend
-python chat.py "Compare axios vs fetch usage in our codebase. When is each used and why?" workspace:all-frontend
+python grep.py "import.*fetch\\|require.*fetch" workspace:all-frontend --regex
 ```
 
 **Use Case:** Replace MCP-based online documentation with real usage examples
@@ -181,25 +189,31 @@ python chat.py "Compare axios vs fetch usage in our codebase. When is each used 
 
 #### Step 1: Broad Search Across Workspace
 ```bash
-python search.py "error handling patterns, exception middleware, error logging" workspace:backend-team --mode deep
+python search.py "error handling patterns, exception middleware, error logging" workspace:backend-team
 ```
 
-#### Step 2: Ask for Pattern Analysis
+#### Step 2: Find Concrete Implementations
 ```bash
-python chat.py "Analyze the different error handling patterns found in our microservices. What are the common approaches?" workspace:backend-team
+python grep.py "catch|ExceptionHandler|ErrorMiddleware" workspace:backend-team --regex
+python fetch.py "org/service-a::src/middleware/error.py::ErrorMiddleware"
+python fetch.py "org/service-b::src/errors/handler.ts::handleError()"
 ```
 
-#### Step 3: Find Best Examples
+#### Step 3: Compare Patterns via Relationships
 ```bash
-python chat.py "Which service has the best error handling implementation and why? Show me specific examples" --continue CONV_ID
+# Understand how error handlers integrate with the rest of the codebase
+python relationships.py "org/service-a::src/middleware/error.py::ErrorMiddleware" --profile callsOnly
+python relationships.py "org/service-b::src/errors/handler.ts::handleError()" --profile callsOnly
 ```
 
 #### Step 4: Identify Anti-Patterns
 ```bash
-python chat.py "What error handling anti-patterns exist in our codebase that we should avoid?" --continue CONV_ID
+# Search for common mistakes
+python grep.py "except:$|catch\\s*\\{\\}" workspace:backend-team --regex
+python search.py "swallowed exceptions, empty catch blocks, error suppression" workspace:backend-team
 ```
 
-**Output:** Pattern comparison, recommendations, and examples to follow
+**Output:** Pattern comparison with real source code evidence and relationship context
 
 ---
 
@@ -211,7 +225,7 @@ python chat.py "What error handling anti-patterns exist in our codebase that we 
 
 #### Step 1: Find Related Code
 ```bash
-python search.py "API performance, slow queries, request handling" my-api-service --include-content
+python search.py "API performance, slow queries, request handling" my-api-service
 ```
 
 #### Step 2: Investigate Database Queries
@@ -219,22 +233,21 @@ python search.py "API performance, slow queries, request handling" my-api-servic
 python search.py "database queries, ORM operations, N+1 problem" my-api-service
 ```
 
-#### Step 3: Check for Known Issues
+#### Step 3: Fetch and Trace Suspicious Code
 ```bash
-python chat.py "What could cause slow API responses in this codebase? Check for common performance issues like N+1 queries, missing indexes, or expensive operations" my-api-service
+# Fetch the actual query implementations
+python fetch.py "my-org/api::src/db/queries.py::get_user_data()"
+# Trace what calls this query and what it calls
+python relationships.py "my-org/api::src/db/queries.py::get_user_data()" --profile callsOnly
 ```
 
 #### Step 4: Find Monitoring/Logging
 ```bash
 python search.py "performance logging, request timing, profiling" my-api-service
+python grep.py "slow_query|performance|latency" my-api-service --regex
 ```
 
-#### Step 5: Get Debugging Strategy
-```bash
-python chat.py "How should I debug and fix this slow API issue? What should I check first and how can I trace the performance bottleneck?" --continue CONV_ID
-```
-
-**Pattern:** Symptom → Related Code → Common Causes → Debugging Strategy
+**Pattern:** Symptom → Search → Fetch source → Trace relationships → Identify bottleneck
 
 ---
 
@@ -246,25 +259,24 @@ python chat.py "How should I debug and fix this slow API issue? What should I ch
 
 #### Step 1: Find Existing Usage
 ```bash
-python search.py "Redux, MobX, Zustand, React Context state management" workspace:all-frontend --mode deep
+python grep.py "Redux|MobX|Zustand|useContext" workspace:all-frontend --regex
+python search.py "state management patterns, store configuration" workspace:all-frontend
 ```
 
-#### Step 2: Analyze Implementation Complexity
+#### Step 2: Fetch and Compare Implementations
 ```bash
-python chat.py "Compare the state management solutions used across our frontend projects. Which ones are simpler to implement and maintain?" workspace:all-frontend
+# Fetch the actual store/state implementations from different projects
+python fetch.py "org/app-a::src/store/index.ts::configureStore()"
+python fetch.py "org/app-b::src/state/context.tsx::AppProvider"
 ```
 
 #### Step 3: Check Performance Patterns
 ```bash
-python search.py "state management performance, re-render optimization" workspace:all-frontend
+python search.py "state management performance, re-render optimization, memoization" workspace:all-frontend
+python grep.py "useMemo|useCallback|React.memo" workspace:all-frontend --regex
 ```
 
-#### Step 4: Get Recommendation
-```bash
-python chat.py "Based on our codebase patterns and team's usage, which state management solution should we use for a new project and why?" --continue CONV_ID
-```
-
-**Output:** Data-driven technology decision based on real usage
+**Output:** Data-driven technology comparison based on real source code from your projects
 
 ---
 
@@ -275,27 +287,29 @@ python chat.py "Based on our codebase patterns and team's usage, which state man
 ### Day 1: Get Overview
 
 ```bash
-# What does this do?
-python chat.py "What is this project? What problem does it solve and what are its main features?" new-service
+# Discover what's indexed
+python datasources.py
 
-# How is it structured?
-python chat.py "What's the project structure and organization? What are the main directories and their purposes?" --continue CONV_ID
+# Find entry points and main features
+python search.py "main application entry point, startup initialization" new-service
+python search.py "main features, core capabilities, major services" new-service
 
-# What's the tech stack?
-python search.py "package.json, requirements.txt, go.mod, dependencies" new-service
+# Understand the tech stack
+python grep.py "package.json|requirements.txt|go.mod" new-service --regex
+python fetch.py "my-org/new-service::package.json"
 ```
 
 ### Day 2: Understand Core Features
 
 ```bash
-# Find entry point
-python search.py "main application entry point, startup sequence" new-service
-
-# Understand data flow
-python chat.py "How does data flow through the application? Trace a typical request from entry to exit" new-service
-
 # Find key components
 python search.py "core services, main controllers, important modules" new-service
+
+# Fetch and read the main entry points
+python fetch.py "my-org/new-service::src/app.py::create_app()"
+
+# Trace data flow through relationships
+python relationships.py "my-org/new-service::src/app.py::create_app()" --profile callsOnly
 ```
 
 ### Day 3: Learn Development Practices
@@ -315,9 +329,13 @@ python search.py "deployment configuration, CI/CD, build process" new-service
 
 ```bash
 # Feature-by-feature exploration
-python search.py "user management" new-service --description-detail full
-python search.py "API integration" new-service --description-detail full
-python search.py "background jobs" new-service --description-detail full
+python search.py "user management" new-service
+python search.py "API integration" new-service
+python search.py "background jobs" new-service
+
+# Fetch source for key features and trace their dependencies
+python fetch.py "my-org/new-service::src/users/service.py::UserService"
+python relationships.py "my-org/new-service::src/users/service.py::UserService" --profile allRelevant
 ```
 
 **Progressive Learning:** Overview → Core Features → Development Practices → Deep Dives
@@ -325,14 +343,6 @@ python search.py "background jobs" new-service --description-detail full
 ---
 
 ## Pro Tips
-
-### Conversation Continuity
-Always save `conversation_id` for follow-up questions:
-```bash
-python chat.py "Initial question" my-repo
-# Note the conversation_id in output
-python chat.py "Follow-up question" --continue CONV_ID
-```
 
 ### Workspace vs Repository
 - **Repository:** Targeted, specific search
@@ -346,25 +356,28 @@ python search.py "auth logic" my-backend-api
 python search.py "authentication patterns" workspace:all-backend
 ```
 
-### Search Mode Strategy
-1. Start with `auto` mode (default)
-2. Use `deep` only if auto misses results
-3. Use `fast` for known terms/names
+### Choosing search.py vs grep.py
+- **Concepts and behavior** ("authentication middleware") → `search.py`
+- **Exact text or regex** ("AuthService", "TODO: fix") → `grep.py`
+- **Not sure?** Start with `search.py`, switch to `grep.py` if you learn specific names
 
-### Content Inclusion Strategy
-- **Current repo:** `include_content=false` (use file read tool after)
-- **External/dependencies:** `include_content=true` (no file access)
+### Getting Full Source
+- **Current repo:** use your editor's file-read tool on the path shown in results
+- **External repos:** `python fetch.py <identifier>` — the identifier comes from search results
 
 ### Combine with Local Tools
 ```bash
 # CodeAlive for discovery
 python search.py "payment processing" my-backend
 
-# file read tool for details
-# Read the specific files found
+# Fetch full source for relevant results
+python fetch.py "my-org/backend::src/payments/processor.py::PaymentProcessor"
 
-# CodeAlive for understanding
-python chat.py "Explain the payment processing implementation" my-backend
+# Trace call graph
+python relationships.py "my-org/backend::src/payments/processor.py::PaymentProcessor" --profile callsOnly
+
+# Read local files for current working repo
+# Use editor's Read tool for files in your working directory
 ```
 
 ### `description` is a triage pointer, not the source of truth

@@ -42,11 +42,13 @@ Do NOT retry the failed script until setup completes successfully.
 | **Grep Search** | `grep.py` | Fast | Low | Finds code containing a specific string or regex (identifiers, literals, patterns) |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
 | **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
-| **Chat with Codebase** | `chat.py` | Slow | High | Synthesized answers, architectural explanations |
+| **Chat with Codebase** | `chat.py` | Slow | High | **Not recommended.** Call ONLY when the user explicitly asks (e.g. "use chat"). |
 
-**Cost guidance:** `semantic_search` and `grep_search` are the default starting point. Chat with Codebase invokes an LLM on the server side, can take up to 30 seconds, and is significantly more expensive per call — use it only when you need a synthesized, ready-to-use answer rather than raw search results.
+**Cost guidance:** `semantic_search` and `grep_search` are the default starting point — fast and cheap. Use `fetch_artifacts` to load full source and `get_artifact_relationships` to trace call graphs. All four tools are low-cost.
 
-**Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `search.py`, `grep.py`, `fetch.py`, `relationships.py`, and local file reads. `chat.py` is optional synthesis, not the default path.
+**Chat is not recommended:** `chat.py` invokes an LLM on the server side, can take up to 30 seconds, and is significantly more expensive per call. Do NOT call it unless the user has explicitly requested it (e.g. "use chat", "use codebase_consultant", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" do NOT qualify — they refer to search tools.
+
+**Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `search.py`, `grep.py`, `fetch.py`, `relationships.py`, and local file reads.
 
 **Three-step workflow (search → triage → load real content):**
 1. **Search** — find relevant code locations with descriptions and identifiers
@@ -118,12 +120,14 @@ python scripts/relationships.py "my-org/backend::src/models.py::User" --profile 
 python scripts/relationships.py "my-org/backend::src/svc.py::Service" --profile allRelevant --max-count 200
 ```
 
-### 5. Chat with codebase (slower, optional synthesis)
+### 5. Chat with codebase (not recommended — only if user explicitly asks)
 
 ```bash
 python scripts/chat.py "Explain the authentication flow" my-backend
 python scripts/chat.py "What about security considerations?" --continue CONV_ID
 ```
+
+**Do not call chat unless the user explicitly asks for it.** Use search, grep, fetch, and relationships for all other tasks.
 
 ## Tool Reference
 
@@ -218,11 +222,13 @@ python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
 | `--max-count N` | Max related artifacts per relationship type (1–1000, default 50) |
 | `--json` | Emit the raw JSON response instead of the formatted view |
 
-### `chat.py` — Chat with Codebase
+### `chat.py` — Chat with Codebase (not recommended)
+
+**Do NOT call unless the user explicitly asks** (e.g. "use chat", "use codebase_consultant", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" refer to search tools, not chat.
 
 Sends your question to an AI consultant that has full context of the indexed codebase. Returns synthesized, ready-to-use answers. Supports conversation continuity for follow-ups.
 
-**This is more expensive than search** because it runs an LLM inference on the server side. Prefer search when you just need to locate code. Use chat when you need explanations, comparisons, or architectural analysis after search. It can take up to 30 seconds.
+**This is slow and expensive** — runs an LLM on the server side, up to 30 seconds per call. For all standard tasks (finding code, understanding architecture, debugging), use `search.py`, `grep.py`, `fetch.py`, and `relationships.py` instead.
 
 ```bash
 python scripts/chat.py <question> <data_sources...> [options]
@@ -300,7 +306,7 @@ This skill works standalone, but delivers the best experience when combined with
 | Component | What it provides |
 |-----------|-----------------|
 | **This skill** | Query patterns, workflow guidance, cost-aware tool selection |
-| **MCP server** | Direct `semantic_search`, `grep_search`, `fetch_artifacts`, `get_artifact_relationships`, `chat`, `get_data_sources` tools plus deprecated aliases |
+| **MCP server** | Direct `semantic_search`, `grep_search`, `fetch_artifacts`, `get_artifact_relationships`, `get_data_sources` tools via MCP protocol |
 
 When both are installed, prefer the MCP server's tools for direct operations and this skill's scripts for guided workflows.
 
