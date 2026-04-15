@@ -3,6 +3,8 @@ name: codealive-context-explorer
 description: Iterative code exploration across indexed repositories using CodeAlive semantic search, grep, artifact fetch, and relationship inspection. Use when investigating a codebase question, tracing cross-service patterns, understanding architecture, debugging, or gathering context from external repos. Offloads exploration to a lightweight subagent to save main conversation context.
 tools: Bash, Read, Grep, Glob
 model: haiku
+skills:
+  - codealive-context-engine
 ---
 
 # CodeAlive Context Explorer
