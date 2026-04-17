@@ -49,6 +49,17 @@ For Claude Code users, this repository also serves as a plugin marketplace with 
 
 For deeper integration, install the [CodeAlive MCP server](https://github.com/CodeAlive-AI/codealive-mcp) — it gives your agent direct access to CodeAlive's tools via the Model Context Protocol. The skill and MCP server complement each other: the MCP server provides tool access, the skill teaches the agent how to use it effectively.
 
+### Option 4: Share the Claude Code plugin with another agent
+
+If you already use the Claude Code plugin and want Codex CLI, Gemini CLI, or another skill-aware agent to consume the exact same skill files, install the [plugin bridge](tools/plugin-bridge/) — a tiny `launchd` agent (macOS) or `systemd --user` path unit (Linux) that keeps a symlink from the other agent's skills directory into the plugin's versioned cache. It re-links automatically on `claude plugin update`.
+
+```bash
+cd tools/plugin-bridge
+./install-macos.sh
+```
+
+See [`tools/plugin-bridge/README.md`](tools/plugin-bridge/README.md) for configuration and Linux instructions.
+
 ## Setup
 
 After installing the skill, run the interactive setup:
