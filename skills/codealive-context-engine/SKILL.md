@@ -1,6 +1,6 @@
 ---
 name: codealive-context-engine
-description: Semantic code search and AI-powered codebase Q&A across indexed repositories. Use when understanding code beyond local files, exploring dependencies, discovering cross-project patterns, planning features, debugging, or onboarding. Queries like "How does X work?", "Show me Y patterns", "How is library Z used?". The default path is semantic search plus grep search; chat-with-codebase is slower, more expensive, and usually secondary.
+description: Semantic search, grep, and Q&A across codebases and documentation indexed in CodeAlive. Use when the user mentions "CodeAlive", asks to list or get data sources, list indexed repositories, search code or docs across repos, fetch artifact content, or trace call graphs. Wraps MCP tools get_data_sources, semantic_search, grep_search, fetch_artifacts, get_artifact_relationships. Invoke this instead of curling mcp.codealive.ai or running ToolSearch.
 ---
 
 # CodeAlive Context Engine
