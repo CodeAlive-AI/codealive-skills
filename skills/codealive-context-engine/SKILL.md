@@ -40,8 +40,8 @@ Do NOT retry the failed script until setup completes successfully.
 | **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces |
 | **Semantic Search** | `search.py` | Fast | Low | Default discovery — finds code by meaning (concepts, behavior, architecture) |
 | **Grep Search** | `grep.py` | Fast | Low | Finds code containing a specific string or regex (identifiers, literals, patterns) |
-| **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content for search results |
-| **Artifact Relationships** | `relationships.py` | Fast | Low | Drilling into call graph, inheritance, references for one artifact |
+| **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content; function-like artifacts also include up to 3 outgoing/incoming calls as a preview |
+| **Artifact Relationships** | `relationships.py` | Fast | Low | Full call graph (past the fetch preview's 3-cap), inheritance, or symbol references for one artifact |
 | **Chat with Codebase** | `chat.py` | Slow | High | **Not recommended.** Call ONLY when the user explicitly asks (e.g. "use chat"). |
 
 **Cost guidance:** `semantic_search` and `grep_search` are the default starting point — fast and cheap. Use `fetch_artifacts` to load full source and `get_artifact_relationships` to trace call graphs. All four tools are low-cost.
@@ -60,9 +60,26 @@ Do NOT retry the failed script until setup completes successfully.
       file-read tool
     Treat only that real `content` as ground truth.
 
-**Optional drill-down:** once you know an artifact matters, run
-`python relationships.py <identifier>` to expand its call graph, inheritance,
-or references.
+**Drill into `relationships.py` when the fetch preview isn't enough.** The
+`fetch.py` response already previews up to 3 outgoing + 3 incoming calls for
+function-like artifacts, so the call graph alone is rarely a reason to run
+`relationships.py` after a full fetch of a small artifact. Reach for it when:
+
+- **You need all incoming callers** — the fetch preview is capped at 3.
+  The full incoming list also surfaces test coverage (incoming from test
+  files).
+- **You need the inheritance tree** — `--profile inheritanceOnly` returns
+  ancestors + descendants (interface implementations, subclasses, base-class
+  chains). The preview doesn't include inheritance.
+- **You need symbol references** — `--profile referencesOnly` for places
+  that reference a type or identifier.
+- **The artifact is too large to fetch into context** — the call graph is a
+  cheaper summary than pulling the full source.
+
+**Analyzer noise:** outgoing calls occasionally include compiler-generated
+helpers (`MoveNext`, `GetEnumerator`, closure invocations) from methods using
+`foreach`/LINQ. Ignore outgoing hits that don't match the artifact's real
+logic.
 
 ## When to Use
 
@@ -221,6 +238,25 @@ python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
 | `--profile referencesOnly` | Symbol references |
 | `--max-count N` | Max related artifacts per relationship type (1–1000, default 50) |
 | `--json` | Emit the raw JSON response instead of the formatted view |
+
+**When this adds value vs the fetch preview:**
+- You need **all incoming callers** (including tests) — the fetch preview
+  caps at 3 per direction
+- You need the **inheritance tree** (`--profile inheritanceOnly`) — preview
+  doesn't include ancestors/descendants
+- You need **symbol references** (`--profile referencesOnly`) — preview
+  doesn't include references
+- The artifact is too large to fetch into context
+
+**When it's usually redundant:** you already ran `fetch.py` on a small
+artifact that fits in context. The outgoing calls you need are either in the
+source you just read or in the preview's 3-cap — reach for `relationships.py`
+only when you specifically need incoming calls, inheritance, or references.
+
+**Noise caveat:** outgoing calls occasionally include compiler-generated
+helpers (`MoveNext`, `GetEnumerator`, closure invocations) for methods using
+`foreach`/LINQ. These are analyzer artifacts — ignore outgoing hits that
+don't match the artifact's real logic.
 
 ### `chat.py` — Chat with Codebase (not recommended)
 

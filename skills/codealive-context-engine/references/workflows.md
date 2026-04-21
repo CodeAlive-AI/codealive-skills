@@ -387,21 +387,58 @@ understanding of the code. For each relevant result, immediately load the real
 source via `fetch.py <identifier>` (external repos) or your editor's file-read
 tool (current working repo). Treat only that real `content` as ground truth.
 
-### Drill into relationships when you need the call graph
-Once you've located an artifact via `search.py` or fetched it via `fetch.py`,
-use `relationships.py` to expand it:
+### Drill into relationships when you need more than the fetch preview
+
+`fetch.py` already includes up to 3 outgoing + 3 incoming calls as a preview
+for function-like artifacts, so the call graph alone is rarely a reason to
+run `relationships.py` after a full fetch of a small artifact. Reach for it
+when:
+
+- **All incoming callers (including tests):** the preview caps at 3, so
+  production callers and test coverage both get truncated. `callsOnly`
+  returns the full list — incoming hits from test files are a proxy for test
+  coverage.
+- **Inheritance tree:** the preview doesn't include ancestors or descendants.
+  `--profile inheritanceOnly` is the only way to see all interface
+  implementations, subclasses, or the full base-class chain.
+- **Symbol references:** `--profile referencesOnly` for places that
+  reference a type or identifier without calling it.
+- **Large artifacts you don't want to fetch:** the graph is a cheaper summary
+  than pulling the full source into context.
+
 ```bash
-# Default: full outgoing + incoming call graph
+# Full incoming + outgoing (default)
 python relationships.py "my-org/backend::src/auth.py::AuthService.login()"
 
-# Class hierarchy
+# Class hierarchy — ancestors + descendants
 python relationships.py "my-org/backend::src/models.py::User" --profile inheritanceOnly
 
-# Everything (calls + inheritance), bigger cap
+# Calls + inheritance with a bigger cap
 python relationships.py "my-org/backend::src/svc.py::Service" --profile allRelevant --max-count 200
 ```
-The `fetch.py` response shows up to 3 calls per direction as a preview;
-`relationships.py` is how you escape that preview cap and switch profiles.
+
+**When `relationships.py` usually adds nothing:** you already fetched the
+full source for a small artifact and it fits in context. Outgoing calls are
+already visible in the source or the fetch preview — start with incoming,
+inheritance, or references instead.
+
+**Noise caveat:** outgoing calls can include compiler-generated helpers
+(`MoveNext`, `GetEnumerator`, closure invocations) from methods using
+`foreach`/LINQ. Ignore hits that don't match the artifact's real logic.
+
+### Typical playbooks
+
+Concrete tool sequences for common questions — pick whichever matches your
+task and skip the rest:
+
+| You want to know... | Sequence |
+|---------------------|----------|
+| "How is X implemented?" | `search.py` → `fetch.py` on the top result (preview covers common outgoing calls) |
+| "Who calls X?" | `search.py`/`grep.py` to find X → `relationships.py --profile callsOnly` → read incoming |
+| "Is X tested, and how?" | locate X → `relationships.py --profile callsOnly` → filter incoming for test-file paths |
+| "All implementations of interface X?" | locate X → `relationships.py --profile inheritanceOnly` → read descendants |
+| "What does this giant service do?" | `search.py` → `relationships.py --profile callsOnly` instead of fetching the full source |
+| "Where is this type referenced?" | locate X → `relationships.py --profile referencesOnly` |
 
 ### Iterative Refinement
 Start broad → Review results → Refine query → Repeat
