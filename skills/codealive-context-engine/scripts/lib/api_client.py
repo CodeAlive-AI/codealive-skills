@@ -4,6 +4,7 @@ Handles authentication and HTTP requests to the CodeAlive API.
 """
 
 import os
+import re
 import urllib.parse
 import sys
 import json
@@ -11,6 +12,66 @@ import urllib.request
 import urllib.error
 import urllib.parse
 from typing import Optional, Dict, Any, List
+
+
+# 24-character hex Mongo ObjectId. The CodeAlive REST API rejects any other
+# shape for conversation_id / message_id with a 400; preflight locally so
+# agents get an actionable error before the network round-trip.
+_OBJECT_ID_RE = re.compile(r"^[0-9a-fA-F]{24}$")
+
+
+def format_codealive_error(status: int, body: Any) -> str:
+    """Format a CodeAlive REST API error body into a single human/agent-readable line.
+
+    Reads RFC 9457 (``type``, ``title``, ``detail``, ``errors[field][]``,
+    ``instance``, ``requestId``) and the legacy {``message``,
+    ``validationErrors``} alias preserved by the server's
+    ProblemDetailsCustomizer. Tolerates bytes, str, or anything stringifiable;
+    never raises.
+    """
+    if isinstance(body, bytes):
+        body_str = body.decode("utf-8", "replace")
+    elif body is None:
+        body_str = ""
+    else:
+        body_str = str(body)
+
+    try:
+        d = json.loads(body_str) if body_str else None
+    except (ValueError, TypeError):
+        d = None
+
+    if not isinstance(d, dict):
+        return f"HTTP {status}: {body_str}" if body_str else f"HTTP {status}"
+
+    title = d.get("title") or d.get("message") or f"HTTP {status}"
+    detail = d.get("detail") or ""
+    parts = [title]
+    if detail and detail != title:
+        parts.append(f"({detail})")
+
+    structured = d.get("errors") if isinstance(d.get("errors"), dict) else None
+    legacy_flat = d.get("validationErrors") or []
+    if structured:
+        rendered = [
+            f"{field}: {msg}"
+            for field, msgs in structured.items()
+            for msg in (msgs or [])
+        ]
+    else:
+        rendered = [str(x) for x in legacy_flat]
+    if rendered:
+        parts.append("Details: " + "; ".join(rendered))
+
+    rid = d.get("requestId") or d.get("traceId")
+    if rid:
+        parts.append(f"requestId={rid}")
+
+    typ = d.get("type")
+    if typ and typ != "about:blank":
+        parts.append(f"type={typ}")
+
+    return " ".join(parts)
 
 
 class CodeAliveClient:
@@ -252,18 +313,17 @@ public class CredReader {{
                 response_data = response.read().decode("utf-8")
                 return json.loads(response_data) if response_data else {}
         except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8")
-            try:
-                error_data = json.loads(error_body)
-                error_msg = error_data.get("message") or error_data.get("error") or error_body
-            except json.JSONDecodeError:
-                error_msg = error_body
+            error_body = e.read()
+            error_msg = format_codealive_error(e.code, error_body)
 
-            # Provide actionable messages for common HTTP errors
-            if e.code == 401:
-                detail = f": {error_msg}" if error_msg.strip() else ""
+            # Provide actionable messages for common HTTP errors. The helper
+            # already aggregates RFC 9457 fields + legacy validationErrors,
+            # so each branch just adds an outer category prefix.
+            if e.code == 400:
+                raise Exception(f"Bad request (400): {error_msg}")
+            elif e.code == 401:
                 raise Exception(
-                    f"Authentication failed (401){detail}. "
+                    f"Authentication failed (401): {error_msg}. "
                     f"Your API key may be invalid or expired. "
                     f"Get a new key at: {self.base_url}/settings/api-keys"
                 )
@@ -276,7 +336,8 @@ public class CredReader {{
                 raise Exception(f"Not found (404): {error_msg}")
             elif e.code == 429:
                 raise Exception(
-                    f"Rate limit exceeded (429). Please wait before retrying."
+                    f"Rate limit exceeded (429): {error_msg}. "
+                    f"Please wait before retrying."
                 )
             elif e.code >= 500:
                 raise Exception(
@@ -469,13 +530,25 @@ public class CredReader {{
             question: Question about the codebase
             data_sources: List of repository or workspace names to analyze
             conversation_id: ID to continue a previous conversation
+                             (24-character hex Mongo ObjectId)
 
         Returns:
-            Response with answer and conversation_id for follow-up questions
+            Response with ``answer``, ``conversation_id``, ``message_id``,
+            and ``full_response``.
         """
+        # Preflight: reject GUIDs / random strings before the network round-trip.
+        # Pre-Phase-3 servers used to return Guid.NewGuid() as response.id and
+        # rejected it on the next turn — this catches that footgun locally.
+        if conversation_id and not _OBJECT_ID_RE.match(conversation_id):
+            raise ValueError(
+                f"conversation_id {conversation_id!r} is not a 24-character hex "
+                f"Mongo ObjectId; pass the value from a previous "
+                f"response.conversation_id"
+            )
+
         body: Dict[str, Any] = {
             "messages": [{"role": "user", "content": question}],
-            "stream": True
+            "stream": False,
         }
 
         if conversation_id:
@@ -485,15 +558,20 @@ public class CredReader {{
         else:
             raise ValueError("Either conversation_id or data_sources must be provided")
 
-        # Note: This is a simplified version. The real implementation would handle streaming.
-        # For now, we'll make a non-streaming request.
-        body["stream"] = False
         response = self._make_request("POST", "/api/chat/completions", body=body)
 
+        # Prefer the documented Phase-3 shape ({content, conversationId, messageId});
+        # fall back to the legacy OpenAI-style envelope so this client keeps working
+        # against pre-Phase-3 servers during incremental rollout.
+        answer = response.get("content")
+        if not answer:
+            answer = (response.get("choices") or [{}])[0].get("message", {}).get("content", "")
+
         return {
-            "answer": response.get("choices", [{}])[0].get("message", {}).get("content", ""),
-            "conversation_id": response.get("id"),
-            "full_response": response
+            "answer": answer,
+            "conversation_id": response.get("conversationId") or response.get("id"),
+            "message_id": response.get("messageId"),
+            "full_response": response,
         }
 
 

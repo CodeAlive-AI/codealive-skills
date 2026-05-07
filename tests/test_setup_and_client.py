@@ -25,7 +25,7 @@ def _load_module(path: Path, name: str):
 
 skill_setup_module = _load_module(SKILL_ROOT / "setup.py", "codealive_skill_setup")
 sys.path.insert(0, str(LIB_ROOT))
-from api_client import CodeAliveClient  # noqa: E402
+from api_client import CodeAliveClient, format_codealive_error  # noqa: E402
 
 
 def test_setup_normalize_base_url_accepts_origin_and_api_suffix():
@@ -229,3 +229,129 @@ def test_api_client_get_artifact_relationships_rejects_unknown_profile():
         assert "Unsupported profile" in str(e)
     else:
         raise AssertionError("ValueError was not raised for unknown profile")
+
+
+# ===== Phase 1 — error contract & ObjectId preflight =====
+
+def test_format_codealive_error_renders_rfc9457_problem_details():
+    body = json.dumps({
+        "type": "https://app.codealive.ai/errors/validation",
+        "title": "Validation failed",
+        "status": 400,
+        "detail": "conversationId: must be a 24-character hex Mongo ObjectId",
+        "instance": "POST /api/chat/completions",
+        "errors": {
+            "conversationId": ["must be a 24-character hex Mongo ObjectId"],
+        },
+        "requestId": "0HNLBU64JB822:00000001",
+    }).encode("utf-8")
+
+    rendered = format_codealive_error(400, body)
+
+    assert "Validation failed" in rendered
+    assert "conversationId: must be a 24-character hex Mongo ObjectId" in rendered
+    assert "Details: conversationId: must be a 24-character hex Mongo ObjectId" in rendered
+    assert "requestId=0HNLBU64JB822:00000001" in rendered
+    assert "type=https://app.codealive.ai/errors/validation" in rendered
+
+
+def test_format_codealive_error_renders_legacy_validation_errors_alias():
+    # Pre-Phase-2 servers still in flight: only {message, validationErrors[]}.
+    body = json.dumps({
+        "message": "Validation failed",
+        "validationErrors": ["Invalid conversation ID format"],
+        "requestId": "0HNLBU64JB822:00000001",
+    }).encode("utf-8")
+
+    rendered = format_codealive_error(400, body)
+
+    assert "Validation failed" in rendered
+    assert "Details: Invalid conversation ID format" in rendered
+    assert "requestId=0HNLBU64JB822:00000001" in rendered
+
+
+def test_format_codealive_error_handles_non_json_body_and_str_input():
+    assert format_codealive_error(502, b"<html>Bad Gateway</html>") == "HTTP 502: <html>Bad Gateway</html>"
+    assert format_codealive_error(503, "") == "HTTP 503"
+    # str input must also be tolerated (e.g. when callers re-decode bytes)
+    assert format_codealive_error(503, "plain text body") == "HTTP 503: plain text body"
+
+
+def test_make_request_400_uses_helper_and_surfaces_field_errors():
+    def bad_handler(_request):
+        return 400, {
+            "type": "https://app.codealive.ai/errors/validation",
+            "title": "Validation failed",
+            "status": 400,
+            "detail": "conversationId: must be a 24-character hex Mongo ObjectId",
+            "errors": {
+                "conversationId": ["must be a 24-character hex Mongo ObjectId"],
+            },
+            "requestId": "abc123",
+        }, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/chat/completions"): bad_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        try:
+            client.chat("hi", data_sources=["backend"])
+        except Exception as e:
+            msg = str(e)
+            assert "Bad request (400)" in msg
+            assert "conversationId: must be a 24-character hex Mongo ObjectId" in msg
+            assert "requestId=abc123" in msg
+        else:
+            raise AssertionError("Expected client.chat to raise on 400")
+
+
+def test_chat_preflight_rejects_non_objectid_conversation_id_without_request():
+    # Tracks the exact GUID from the §2 incident reproduction.
+    guid = "c8d2c10f-ce4b-43f7-ae24-072c60aacc1e"
+    client = CodeAliveClient(api_key="skill-test-key", base_url="https://test.local")
+    try:
+        client.chat("hi", conversation_id=guid)
+    except ValueError as e:
+        msg = str(e)
+        assert "24-character hex Mongo ObjectId" in msg
+        assert guid in msg
+    else:
+        raise AssertionError("Expected ValueError for GUID conversation_id")
+
+
+def test_chat_accepts_phase3_response_shape_with_conversationid_and_messageid():
+    def chat_handler(_request):
+        return 200, {
+            "content": "Auth is in AuthService.",
+            "conversationId": "69fceb3e7b2a6a7efdd18180",
+            "messageId": "69fceb3e7b2a6a7efdd18181",
+        }, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/chat/completions"): chat_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.chat("How does auth work?", data_sources=["backend"])
+
+    assert result["answer"] == "Auth is in AuthService."
+    assert result["conversation_id"] == "69fceb3e7b2a6a7efdd18180"
+    assert result["message_id"] == "69fceb3e7b2a6a7efdd18181"
+
+
+def test_chat_falls_back_to_legacy_id_envelope_when_phase3_fields_absent():
+    # Pre-Phase-3 server: OpenAI-shaped envelope with id+choices only.
+    def chat_handler(_request):
+        return 200, {
+            "id": "conv_legacy",
+            "choices": [{"message": {"content": "legacy answer"}}],
+        }, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/chat/completions"): chat_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.chat("hi", data_sources=["backend"])
+
+    assert result["answer"] == "legacy answer"
+    assert result["conversation_id"] == "conv_legacy"
+    assert result["message_id"] is None  # not present in legacy envelope

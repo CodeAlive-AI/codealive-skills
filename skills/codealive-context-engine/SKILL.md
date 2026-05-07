@@ -274,7 +274,9 @@ python scripts/chat.py <question> <data_sources...> [options]
 |--------|-------------|
 | `--continue <id>` | Continue a previous conversation (saves context and cost) |
 
-**Conversation continuity:** Every response includes a `conversation_id`. Pass it with `--continue` for follow-up questions — this preserves context and is cheaper than starting fresh.
+**Conversation continuity:** Every successful response includes a `conversation_id` (a 24-character hex Mongo ObjectId, e.g. `69fceb3e7b2a6a7efdd18180`) and a `message_id` of the same format. Pass `--continue <conversation_id>` for follow-up questions — this preserves context and is cheaper than starting fresh.
+
+Format guarantee: any value not matching `^[0-9a-fA-F]{24}$` is rejected client-side before the request is sent.
 
 ## Data Sources
 
