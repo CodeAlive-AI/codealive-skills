@@ -298,7 +298,8 @@ public class CredReader {{
         # Prepare request
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Accept": "application/json, application/problem+json",
         }
 
         data = None

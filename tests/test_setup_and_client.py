@@ -96,6 +96,7 @@ def test_api_client_search_fetch_and_chat_use_expected_endpoints():
         payload = json.loads(request["body"])
         assert payload["messages"][0]["content"] == "How does auth work?"
         assert payload["names"] == ["backend"]
+        assert request["headers"]["Accept"] == "application/json, application/problem+json"
         return 200, {"id": "conv_123", "choices": [{"message": {"content": "Auth is handled in AuthService."}}]}, {}
 
     with mock_codealive_server(

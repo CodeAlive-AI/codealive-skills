@@ -21,7 +21,7 @@ Examples:
     python chat.py "How does lodash debounce work internally?" lodash
 
     # Continue previous conversation
-    python chat.py "What about error handling?" --continue conv_abc123
+    python chat.py "What about error handling?" --continue 69fceb3e7b2a6a7efdd18180
 
     # Cross-project learning
     python chat.py "Show me authentication patterns across our org" workspace:all-backend
