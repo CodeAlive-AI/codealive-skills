@@ -81,7 +81,7 @@ def test_get_datasources_with_query_sends_param_and_reports_omitted_count():
                 "type": "Repository",
                 "relevanceReason": "Implements the checkout flow",
             }
-        ], {"X-CodeAlive-Total-Data-Sources": "3"}
+        ], {"x-codealive-total-data-sources": "3"}  # lowercase: proxies may normalize casing
 
     with mock_codealive_server(
         {("GET", "/api/datasources/ready?query=add+OAuth"): datasources_handler}
@@ -114,6 +114,39 @@ def test_get_datasources_query_fail_open_warns_full_list_returned():
 
     assert len(result["dataSources"]) == 2
     assert "FULL unfiltered list" in result["message"]
+
+
+def test_get_datasources_query_confident_empty_reports_nothing_relevant():
+    # Empty list + total header: the filter ran and confidently matched nothing.
+    # Must NOT be mistaken for fail-open (fail-open returns the full, non-empty list).
+    def datasources_handler(_request):
+        return 200, [], {"X-CodeAlive-Total-Data-Sources": "3"}
+
+    with mock_codealive_server(
+        {("GET", "/api/datasources/ready?query=add+OAuth"): datasources_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_datasources(query="add OAuth")
+
+    assert result["dataSources"] == []
+    assert "None of the 3 available data sources are relevant" in result["message"]
+    assert "List without a query" in result["message"]
+
+
+def test_get_datasources_query_empty_org_reports_no_sources():
+    # Empty list and total header reports zero candidates: the org simply has no
+    # data sources — not a relevance verdict, not a filter failure.
+    def datasources_handler(_request):
+        return 200, [], {"X-CodeAlive-Total-Data-Sources": "0"}
+
+    with mock_codealive_server(
+        {("GET", "/api/datasources/ready?query=add+OAuth"): datasources_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_datasources(query="add OAuth")
+
+    assert result["dataSources"] == []
+    assert result["message"] == "No data sources are available."
 
 
 def test_get_datasources_blank_query_behaves_like_no_query():

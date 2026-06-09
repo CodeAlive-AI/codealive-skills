@@ -20,32 +20,49 @@ from typing import Optional, Dict, Any, List
 _OBJECT_ID_RE = re.compile(r"^[0-9a-fA-F]{24}$")
 
 # Pre-filter scoped candidate count, emitted by the backend only on relevance-filtered
-# (query'd) data source listings.
-_TOTAL_DATA_SOURCES_HEADER = "X-CodeAlive-Total-Data-Sources"
+# (query'd) data source listings. Lowercase because _make_request lowercases header
+# keys (proxies/origins may change response-header casing; HTTP headers are
+# case-insensitive per RFC 9110).
+_TOTAL_DATA_SOURCES_HEADER = "x-codealive-total-data-sources"
 
 
 def relevance_message(datasources: List[Dict[str, Any]], total_header: Optional[str]) -> str:
     """Build the hint accompanying a query'd (relevance-filtered) data source listing.
 
     The backend guarantees every relevance-selected item carries a non-empty
-    ``relevanceReason``, so a query'd response where NO item has one means the filter
-    did not run (fail-open on error, disabled by config, or an older backend ignoring
-    ``query``) and the FULL list was returned — the caller must be told, instead of
-    mistaking the full dump for a relevant shortlist.
-    """
-    filtered = any(ds.get("relevanceReason") for ds in datasources)
-    if not filtered:
-        return (
-            "Relevance filtering was unavailable for this request (it may have failed or be "
-            "disabled), so the FULL unfiltered list of data sources is returned."
-        )
+    ``relevanceReason``, so a NON-EMPTY query'd response where no item has one means
+    the filter did not run (fail-open on error, disabled by config, or an older
+    backend ignoring ``query``) and the FULL list was returned — the caller must be
+    told, instead of mistaking the full dump for a relevant shortlist.
 
+    An EMPTY response is never fail-open output when the total header reports
+    available candidates (fail-open returns the full, hence non-empty, list): it is
+    the filter's confident-empty verdict — it ran and matched nothing.
+
+    The total header is NOT a filter-success signal: the backend emits it on every
+    query'd response, including fail-open.
+    """
     shown = len(datasources)
     try:
         total = int(total_header)
     except (TypeError, ValueError):
         # Header absent (TypeError on int(None)) or malformed (ValueError).
         total = None
+
+    if shown == 0:
+        if total is not None and total > 0:
+            return (
+                f"None of the {total} available data sources are relevant to this query. "
+                "List without a query to get the full list."
+            )
+        return "No data sources are available."
+
+    filtered = any(ds.get("relevanceReason") for ds in datasources)
+    if not filtered:
+        return (
+            "Relevance filtering was unavailable for this request (it may have failed or be "
+            "disabled), so the FULL unfiltered list of data sources is returned."
+        )
     if total is not None and total > shown:
         return (
             f"{shown} of {total} available data sources are relevant to this query; the other "
@@ -355,7 +372,9 @@ public class CredReader {{
                 response_data = response.read().decode("utf-8")
                 parsed = json.loads(response_data) if response_data else {}
                 if return_headers:
-                    return parsed, dict(response.headers.items())
+                    # Lowercase keys: header casing is not guaranteed end-to-end
+                    # (RFC 9110 §5.1), and a plain dict lookup is case-sensitive.
+                    return parsed, {k.lower(): v for k, v in response.headers.items()}
                 return parsed
         except urllib.error.HTTPError as e:
             error_body = e.read()
