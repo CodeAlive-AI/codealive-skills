@@ -72,6 +72,66 @@ def test_api_client_normalizes_base_url_and_calls_ready_endpoint():
     assert requests[0]["headers"]["Authorization"] == "Bearer skill-test-key"
 
 
+def test_get_datasources_with_query_sends_param_and_reports_omitted_count():
+    def datasources_handler(_request):
+        return 200, [
+            {
+                "id": "repo-1",
+                "name": "backend",
+                "type": "Repository",
+                "relevanceReason": "Implements the checkout flow",
+            }
+        ], {"X-CodeAlive-Total-Data-Sources": "3"}
+
+    with mock_codealive_server(
+        {("GET", "/api/datasources/ready?query=add+OAuth"): datasources_handler}
+    ) as (base_url, requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_datasources(query="add OAuth")
+
+    assert requests[0]["path"] == "/api/datasources/ready?query=add+OAuth"
+    assert result["dataSources"][0]["relevanceReason"] == "Implements the checkout flow"
+    assert "1 of 3 available data sources are relevant" in result["message"]
+    assert "the other 2 were omitted" in result["message"]
+
+
+def test_get_datasources_query_fail_open_warns_full_list_returned():
+    # No item carries relevanceReason and no total header: the backend filter did not
+    # run (fail-open / disabled / older backend) and returned the full list.
+    with mock_codealive_server(
+        {
+            ("GET", "/api/datasources/ready?query=add+OAuth"): (
+                200,
+                [
+                    {"id": "repo-1", "name": "backend", "type": "Repository"},
+                    {"id": "repo-2", "name": "frontend", "type": "Repository"},
+                ],
+            )
+        }
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_datasources(query="add OAuth")
+
+    assert len(result["dataSources"]) == 2
+    assert "FULL unfiltered list" in result["message"]
+
+
+def test_get_datasources_blank_query_behaves_like_no_query():
+    with mock_codealive_server(
+        {
+            ("GET", "/api/datasources/ready"): (
+                200,
+                [{"id": "repo-1", "name": "backend", "type": "Repository"}],
+            )
+        }
+    ) as (base_url, requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.get_datasources(query="   ")
+
+    assert result == [{"id": "repo-1", "name": "backend", "type": "Repository"}]
+    assert requests[0]["path"] == "/api/datasources/ready"
+
+
 def test_api_client_search_fetch_and_chat_use_expected_endpoints():
     def search_handler(request):
         assert "Query=auth" in request["path"]

@@ -19,6 +19,45 @@ from typing import Optional, Dict, Any, List
 # agents get an actionable error before the network round-trip.
 _OBJECT_ID_RE = re.compile(r"^[0-9a-fA-F]{24}$")
 
+# Pre-filter scoped candidate count, emitted by the backend only on relevance-filtered
+# (query'd) data source listings.
+_TOTAL_DATA_SOURCES_HEADER = "X-CodeAlive-Total-Data-Sources"
+
+
+def relevance_message(datasources: List[Dict[str, Any]], total_header: Optional[str]) -> str:
+    """Build the hint accompanying a query'd (relevance-filtered) data source listing.
+
+    The backend guarantees every relevance-selected item carries a non-empty
+    ``relevanceReason``, so a query'd response where NO item has one means the filter
+    did not run (fail-open on error, disabled by config, or an older backend ignoring
+    ``query``) and the FULL list was returned — the caller must be told, instead of
+    mistaking the full dump for a relevant shortlist.
+    """
+    filtered = any(ds.get("relevanceReason") for ds in datasources)
+    if not filtered:
+        return (
+            "Relevance filtering was unavailable for this request (it may have failed or be "
+            "disabled), so the FULL unfiltered list of data sources is returned."
+        )
+
+    shown = len(datasources)
+    try:
+        total = int(total_header)
+    except (TypeError, ValueError):
+        # Header absent (TypeError on int(None)) or malformed (ValueError).
+        total = None
+    if total is not None and total > shown:
+        return (
+            f"{shown} of {total} available data sources are relevant to this query; the other "
+            f"{total - shown} were omitted. List without a query to get the full list."
+        )
+    if total is not None:
+        return f"All {total} available data sources are relevant to this query."
+    return (
+        "Only the data sources relevant to this query are shown; non-relevant sources were "
+        "omitted. List without a query to get the full list."
+    )
+
 
 def format_codealive_error(status: int, body: Any) -> str:
     """Format a CodeAlive REST API error body into a single human/agent-readable line.
@@ -274,8 +313,9 @@ public class CredReader {{
         method: str,
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
-        body: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        body: Optional[Dict[str, Any]] = None,
+        return_headers: bool = False
+    ) -> Any:
         """
         Make an HTTP request to the CodeAlive API.
 
@@ -284,9 +324,10 @@ public class CredReader {{
             endpoint: API endpoint path
             params: URL query parameters
             body: Request body for POST requests
+            return_headers: If True, return (parsed JSON, response headers dict) instead.
 
         Returns:
-            Parsed JSON response
+            Parsed JSON response, or (parsed JSON, headers) when return_headers is True
         """
         url = f"{self.base_url}{endpoint}"
 
@@ -312,7 +353,10 @@ public class CredReader {{
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 response_data = response.read().decode("utf-8")
-                return json.loads(response_data) if response_data else {}
+                parsed = json.loads(response_data) if response_data else {}
+                if return_headers:
+                    return parsed, dict(response.headers.items())
+                return parsed
         except urllib.error.HTTPError as e:
             error_body = e.read()
             error_msg = format_codealive_error(e.code, error_body)
@@ -353,18 +397,35 @@ public class CredReader {{
                 f"Check your network connection and CODEALIVE_BASE_URL setting."
             )
 
-    def get_datasources(self, alive_only: bool = True) -> List[Dict[str, Any]]:
+    def get_datasources(
+        self, alive_only: bool = True, query: Optional[str] = None
+    ) -> Any:
         """
         Get available data sources (repositories and workspaces).
 
         Args:
             alive_only: If True, only return data sources ready for use. If False, return all.
+            query: Optional natural-language task/intent (e.g. "add OAuth to checkout"). When
+                provided, the backend runs an agentic relevance filter and returns ONLY the data
+                sources relevant to that intent, each with a `relevanceReason` explaining why.
 
         Returns:
-            List of data source objects with id, name, description, type, etc.
+            Without query: list of data source objects with id, name, description, type, etc.
+            With query: dict {"dataSources": [...], "message": "..."} where `message` says whether
+            sources were omitted as non-relevant (and how many of the total) or that relevance
+            filtering was unavailable and the FULL list is returned.
         """
         endpoint = "/api/datasources/ready" if alive_only else "/api/datasources/all"
-        return self._make_request("GET", endpoint)
+        if not query or not query.strip():
+            return self._make_request("GET", endpoint)
+
+        datasources, headers = self._make_request(
+            "GET", endpoint, params={"query": query}, return_headers=True
+        )
+        return {
+            "dataSources": datasources,
+            "message": relevance_message(datasources, headers.get(_TOTAL_DATA_SOURCES_HEADER)),
+        }
 
     def search(
         self,
@@ -581,7 +642,7 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python api_client.py <command> [args...]")
         print("Commands:")
-        print("  datasources [--all]")
+        print("  datasources [--all] [--query TASK]")
         print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
         print("  semantic-search <query> <data_source1> [data_source2...] [--path PATH] [--ext EXT] [--max-results N]")
         print("  grep-search <query> <data_source1> [data_source2...] [--regex] [--path PATH] [--ext EXT] [--max-results N]")
@@ -596,7 +657,14 @@ def main():
     try:
         if command == "datasources":
             alive_only = "--all" not in sys.argv
-            result = client.get_datasources(alive_only=alive_only)
+            query = None
+            if "--query" in sys.argv:
+                query_index = sys.argv.index("--query")
+                if query_index + 1 >= len(sys.argv):
+                    print("Usage: datasources [--all] [--query TASK]")
+                    sys.exit(1)
+                query = sys.argv[query_index + 1]
+            result = client.get_datasources(alive_only=alive_only, query=query)
             print(json.dumps(result, indent=2))
 
         elif command == "search":

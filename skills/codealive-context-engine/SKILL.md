@@ -37,7 +37,7 @@ Do NOT retry the failed script until setup completes successfully.
 
 | Tool | Script | Speed | Cost | Best For |
 |------|--------|-------|------|----------|
-| **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces |
+| **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces. With `--query "task"`, runs an AI relevance filter (low cost, not instant) returning only the relevant sources |
 | **Semantic Search** | `search.py` | Fast | Low | Default discovery — finds code by meaning (concepts, behavior, architecture) |
 | **Grep Search** | `grep.py` | Fast | Low | Finds code containing a specific string or regex (identifiers, literals, patterns) |
 | **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content; function-like artifacts also include up to 3 outgoing/incoming calls as a preview |
@@ -106,8 +106,12 @@ logic.
 ### 1. Discover what's indexed
 
 ```bash
-python scripts/datasources.py
+python scripts/datasources.py --query "the user's task in natural language"
 ```
+
+Recommended: pass the user's task as `--query` so the backend returns only the relevant
+data sources, each with a `relevanceReason`. Omit `--query` to list everything (instant,
+no AI filtering).
 
 ### 2. Search for code (fast, cheap)
 
@@ -151,10 +155,20 @@ python scripts/chat.py "What about security considerations?" --continue CONV_ID
 ### `datasources.py` — List Data Sources
 
 ```bash
-python scripts/datasources.py              # Ready-to-use sources
+python scripts/datasources.py --query "add OAuth to checkout"  # Only sources relevant to a task (recommended)
+python scripts/datasources.py              # Ready-to-use sources (full list)
 python scripts/datasources.py --all        # All (including processing)
 python scripts/datasources.py --json       # JSON output
 ```
+
+| Option | Description |
+|--------|-------------|
+| `--query "TASK"` | The user's task/intent in natural language. The backend runs an AI relevance filter and returns only the relevant sources, each with a `relevanceReason`. Recommended whenever you know what the user is trying to accomplish |
+| `--all` | Include sources still processing |
+| `--json` | Raw JSON output (with `--query`: `{"dataSources": [...], "message": "..."}`) |
+
+**Fail-open:** if relevance filtering is unavailable, the FULL list is returned and the
+output says so — check the message before treating the result as a relevant shortlist.
 
 ### `search.py` — Semantic Code Search (default discovery tool)
 

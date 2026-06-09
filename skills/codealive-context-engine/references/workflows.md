@@ -20,8 +20,12 @@ Complete workflows for common code exploration scenarios using CodeAlive.
 
 ### Step 1: Discover Available Code
 ```bash
-python datasources.py
+python datasources.py --query "your task in natural language"
 ```
+
+Pass your task as `--query` to get only the relevant data sources, each with a
+`relevanceReason` (recommended when you know the goal). Run plain `python datasources.py`
+for the complete inventory.
 
 Review output to understand:
 - What repositories are indexed
@@ -287,8 +291,8 @@ python grep.py "useMemo|useCallback|React.memo" workspace:all-frontend --regex
 ### Day 1: Get Overview
 
 ```bash
-# Discover what's indexed
-python datasources.py
+# Discover what's indexed (relevance-filtered to the onboarding goal)
+python datasources.py --query "onboard to the new-service codebase"
 
 # Find entry points and main features
 python search.py "main application entry point, startup initialization" new-service
