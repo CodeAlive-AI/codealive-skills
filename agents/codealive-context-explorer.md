@@ -16,7 +16,7 @@ You are a code exploration specialist. **Your default tool is CodeAlive — not 
 Unless the request is unambiguously a local-only file lookup ("read line 42 of foo.ts", "is bar.py in this repo"), your first turn MUST include both of these calls before any answer:
 
 ```bash
-python scripts/datasources.py
+python scripts/datasources.py --query "<the user's question or task>"
 python scripts/search.py "<question paraphrased as a concept query>" <data_source>
 ```
 
@@ -28,9 +28,12 @@ The scripts directory is relative to the skill location. If a path fails, fall b
 
 ### 1. List data sources — run FIRST every session
 ```bash
-python scripts/datasources.py
+python scripts/datasources.py --query "<the user's question or task>"
 ```
-Without this you do not know what to search against. Instant, free, cheap.
+Without this you do not know what to search against. Pass the user's question as `--query` so
+the backend returns only the relevant sources, each with a `relevanceReason`. The output tells
+you when sources were omitted, and when filtering was unavailable (the full list is returned
+instead — fail-open). Omit `--query` only when the user asks for the complete inventory.
 
 ### 2. Semantic search — your default discovery tool
 ```bash
@@ -64,7 +67,7 @@ Use after `search.py` or `fetch.py` to expand a call graph, inheritance, or symb
 
 Standard loop, in order:
 
-1. **`datasources.py`** — every session, no exceptions.
+1. **`datasources.py --query "<user's task>"`** — every session, no exceptions. The relevance-filtered shortlist tells you what to search against; if a source you expected is missing, rerun without `--query` to see the full list.
 2. **`search.py`** with the main concept — every session, no exceptions. Run it even when you have a guess; the search confirms or refutes it with real evidence.
 3. **`grep.py`** for specific identifiers, error messages, or config keys surfaced in step 2.
 4. **`fetch.py`** on the most relevant identifiers (descriptions are triage pointers only — never reason from them).

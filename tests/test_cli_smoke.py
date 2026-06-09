@@ -120,6 +120,71 @@ def test_datasources_search_fetch_and_chat_scripts_work_against_mock_backend():
     ]
 
 
+def test_datasources_script_query_flag_renders_relevance_shortlist():
+    def datasources_handler(_request):
+        return 200, [
+            {
+                "id": "repo-1",
+                "name": "backend",
+                "type": "Repository",
+                "description": "Main backend",
+                "relevanceReason": "Implements the checkout flow",
+            }
+        ], {"X-CodeAlive-Total-Data-Sources": "3"}
+
+    with mock_codealive_server(
+        {("GET", "/api/datasources/ready?query=add+OAuth+to+checkout"): datasources_handler}
+    ) as (base_url, requests):
+        env = {
+            **os.environ,
+            "CODEALIVE_API_KEY": "skill-test-key",
+            "CODEALIVE_BASE_URL": f"{base_url}/api",
+        }
+
+        formatted = _run("datasources.py", "--query", "add OAuth to checkout", env=env)
+        as_json = _run("datasources.py", "--query", "add OAuth to checkout", "--json", env=env)
+
+    assert formatted.returncode == 0, formatted.stderr
+    assert "backend" in formatted.stdout
+    assert "Implements the checkout flow" in formatted.stdout
+    assert "1 of 3 available data sources are relevant" in formatted.stdout
+    assert "the other 2 were omitted" in formatted.stdout
+
+    assert as_json.returncode == 0, as_json.stderr
+    envelope = json.loads(as_json.stdout)
+    assert envelope["dataSources"][0]["relevanceReason"] == "Implements the checkout flow"
+    assert "1 of 3" in envelope["message"]
+
+    assert [request["path"] for request in requests] == [
+        "/api/datasources/ready?query=add+OAuth+to+checkout",
+        "/api/datasources/ready?query=add+OAuth+to+checkout",
+    ]
+
+
+def test_datasources_script_query_fail_open_warns_full_list():
+    with mock_codealive_server(
+        {
+            ("GET", "/api/datasources/ready?query=add+OAuth"): (
+                200,
+                [
+                    {"id": "repo-1", "name": "backend", "type": "Repository"},
+                    {"id": "repo-2", "name": "frontend", "type": "Repository"},
+                ],
+            )
+        }
+    ) as (base_url, _requests):
+        env = {
+            **os.environ,
+            "CODEALIVE_API_KEY": "skill-test-key",
+            "CODEALIVE_BASE_URL": f"{base_url}/api",
+        }
+
+        result = _run("datasources.py", "--query", "add OAuth", env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert "FULL unfiltered list" in result.stdout
+
+
 def test_relationships_script_works_against_mock_backend():
     def relationships_handler(request):
         body = json.loads(request["body"])
