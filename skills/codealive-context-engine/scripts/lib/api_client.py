@@ -812,7 +812,12 @@ def main():
             i = 2
             while i < len(sys.argv):
                 arg = sys.argv[i]
-                if arg == "--data-source" and i + 1 < len(sys.argv):
+                if arg == "--data-source":
+                    # Match the flag first, then require a value — otherwise a trailing
+                    # "--data-source" with no value would be silently appended as an identifier.
+                    if i + 1 >= len(sys.argv):
+                        print("Error: --data-source requires a value.", file=sys.stderr)
+                        sys.exit(1)
                     data_source = sys.argv[i + 1]
                     i += 2
                 else:
@@ -835,13 +840,24 @@ def main():
             i = 3
             while i < len(sys.argv):
                 arg = sys.argv[i]
-                if arg == "--profile" and i + 1 < len(sys.argv):
+                # Value-bearing flags match on the name first, then require a value, so a trailing
+                # flag with no value reports "requires a value" instead of being silently skipped.
+                if arg == "--profile":
+                    if i + 1 >= len(sys.argv):
+                        print("Error: --profile requires a value.", file=sys.stderr)
+                        sys.exit(1)
                     profile = sys.argv[i + 1]
                     i += 2
-                elif arg == "--max-count" and i + 1 < len(sys.argv):
+                elif arg == "--max-count":
+                    if i + 1 >= len(sys.argv):
+                        print("Error: --max-count requires a value.", file=sys.stderr)
+                        sys.exit(1)
                     max_count = int(sys.argv[i + 1])
                     i += 2
-                elif arg == "--data-source" and i + 1 < len(sys.argv):
+                elif arg == "--data-source":
+                    if i + 1 >= len(sys.argv):
+                        print("Error: --data-source requires a value.", file=sys.stderr)
+                        sys.exit(1)
                     data_source = sys.argv[i + 1]
                     i += 2
                 else:
@@ -864,7 +880,12 @@ def main():
             i = 3
             while i < len(sys.argv):
                 arg = sys.argv[i]
-                if arg == "--conversation-id" and i + 1 < len(sys.argv):
+                if arg == "--conversation-id":
+                    # Match the flag first, then require a value — otherwise a trailing
+                    # "--conversation-id" with no value would be silently appended as a data source.
+                    if i + 1 >= len(sys.argv):
+                        print("Error: --conversation-id requires a value.", file=sys.stderr)
+                        sys.exit(1)
                     conversation_id = sys.argv[i + 1]
                     i += 2
                 else:

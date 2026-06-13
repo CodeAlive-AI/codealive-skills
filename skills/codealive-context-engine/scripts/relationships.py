@@ -160,17 +160,28 @@ def main():
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg == "--profile" and i + 1 < len(sys.argv):
+        # Value-bearing flags match on the name first, then require a value, so a trailing flag with
+        # no value reports "requires a value" rather than the misleading "unknown argument" below.
+        if arg == "--profile":
+            if i + 1 >= len(sys.argv):
+                print("Error: --profile requires a value.", file=sys.stderr)
+                sys.exit(1)
             profile = sys.argv[i + 1]
             i += 2
-        elif arg == "--max-count" and i + 1 < len(sys.argv):
+        elif arg == "--max-count":
+            if i + 1 >= len(sys.argv):
+                print("Error: --max-count requires a value.", file=sys.stderr)
+                sys.exit(1)
             try:
                 max_count = int(sys.argv[i + 1])
             except ValueError:
                 print(f"Error: --max-count expects an integer, got '{sys.argv[i + 1]}'", file=sys.stderr)
                 sys.exit(1)
             i += 2
-        elif arg == "--data-source" and i + 1 < len(sys.argv):
+        elif arg == "--data-source":
+            if i + 1 >= len(sys.argv):
+                print("Error: --data-source requires a value.", file=sys.stderr)
+                sys.exit(1)
             data_source = sys.argv[i + 1]
             i += 2
         elif arg == "--json":

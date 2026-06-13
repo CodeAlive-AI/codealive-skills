@@ -356,3 +356,37 @@ def test_fetch_and_relationships_scripts_hint_when_data_source_misses():
     assert rel.returncode == 0, rel.stderr
     assert "backend" in rel.stdout
     assert "drop --data-source" in rel.stdout
+
+
+def test_fetch_and_relationships_scripts_error_on_data_source_without_value():
+    """A trailing --data-source with no value must error, not be silently treated as an identifier."""
+    env = {**os.environ, "CODEALIVE_API_KEY": "skill-test-key"}
+
+    fetch = _run("fetch.py", "org/repo::src/auth.py::AuthService", "--data-source", env=env)
+    assert fetch.returncode != 0
+    assert "--data-source requires a value" in fetch.stderr
+
+    rel = _run("relationships.py", "org/repo::src/auth.py::AuthService", "--data-source", env=env)
+    assert rel.returncode != 0
+    assert "--data-source requires a value" in rel.stderr
+
+
+def test_grep_format_surfaces_dict_and_string_datasource():
+    """format_grep_results surfaces the source whether dataSource is a {name,id} object or a string."""
+    import importlib.util
+
+    grep_path = SKILL_ROOT / "scripts" / "grep.py"
+    spec = importlib.util.spec_from_file_location("grep_under_test", grep_path)
+    grep_mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(grep_mod)
+
+    dict_out = grep_mod.format_grep_results(
+        {"results": [{"identifier": "org/repo::a.py::F", "dataSource": {"name": "backend", "id": "abc123"}}]}
+    )
+    assert "Source: backend (id: abc123)" in dict_out
+
+    # A bare-string dataSource must still be surfaced (was silently dropped before).
+    str_out = grep_mod.format_grep_results(
+        {"results": [{"identifier": "org/repo::a.py::F", "dataSource": "backend"}]}
+    )
+    assert "Source: backend" in str_out

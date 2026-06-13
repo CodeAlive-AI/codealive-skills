@@ -170,7 +170,12 @@ def main():
     i = 1
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg == "--data-source" and i + 1 < len(sys.argv):
+        if arg == "--data-source":
+            # Match the flag first, then require a value — otherwise a trailing "--data-source"
+            # with no value would be silently appended as an identifier.
+            if i + 1 >= len(sys.argv):
+                print("Error: --data-source requires a value.", file=sys.stderr)
+                sys.exit(1)
             data_source = sys.argv[i + 1]
             i += 2
         else:
