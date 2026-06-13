@@ -309,3 +309,50 @@ def test_check_auth_hook_normalizes_base_url_and_uses_repo_root_fallback():
     assert result.returncode == 0
     assert "https://codealive.example.com/settings/api-keys" in result.stdout
     assert str(REPO_ROOT / "skills" / "codealive-context-engine" / "setup.py") in result.stdout
+
+
+def test_fetch_and_relationships_scripts_hint_when_data_source_misses():
+    """A --data-source-scoped request that finds nothing must hint: try another source or drop it."""
+    def fetch_handler(request):
+        body = json.loads(request["body"])
+        assert body["dataSource"] == "backend"
+        # Scoped to a source that doesn't contain the identifier -> null content.
+        return 200, {"artifacts": [{"identifier": body["identifiers"][0], "content": None}]}, {}
+
+    def relationships_handler(request):
+        body = json.loads(request["body"])
+        assert body["dataSource"] == "backend"
+        return 200, {
+            "sourceIdentifier": body["identifier"],
+            "profile": body["profile"],
+            "found": False,
+            "relationships": [],
+        }, {}
+
+    with mock_codealive_server(
+        {
+            ("POST", "/api/search/artifacts"): fetch_handler,
+            ("POST", "/api/search/artifact-relationships"): relationships_handler,
+        }
+    ) as (base_url, _requests):
+        env = {
+            **os.environ,
+            "CODEALIVE_API_KEY": "skill-test-key",
+            "CODEALIVE_BASE_URL": f"{base_url}/api",
+        }
+
+        fetch = _run(
+            "fetch.py", "org/repo::src/auth.py::Missing", "--data-source", "backend", env=env
+        )
+        rel = _run(
+            "relationships.py", "org/repo::src/auth.py::Missing", "--data-source", "backend", env=env
+        )
+
+    assert fetch.returncode == 0, fetch.stderr
+    assert "backend" in fetch.stdout
+    assert "--data-source" in fetch.stdout
+    assert "drop --data-source" in fetch.stdout
+
+    assert rel.returncode == 0, rel.stderr
+    assert "backend" in rel.stdout
+    assert "drop --data-source" in rel.stdout

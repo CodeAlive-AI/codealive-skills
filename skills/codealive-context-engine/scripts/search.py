@@ -57,7 +57,12 @@ def format_search_results(results: dict) -> str:
         end_line = range_info.get("end", {}).get("line") or result.get("endLine")
 
         ds = result.get("dataSource", {})
-        source_name = ds.get("name") if isinstance(ds, dict) else ds
+        if isinstance(ds, dict):
+            source_name = ds.get("name")
+            source_id = ds.get("id")
+        else:
+            source_name = ds
+            source_id = None
 
         kind = result.get("kind", "")
         identifier = result.get("identifier", "")
@@ -84,8 +89,14 @@ def format_search_results(results: dict) -> str:
             short_id = identifier.split("::")[-1] if "::" in identifier else identifier
             if short_id != file_path:
                 output.append(f"  Symbol: {short_id}")
-        if source_name:
+        # Surface both the data-source name and id so they can be passed straight back as
+        # --data-source to fetch.py / relationships.py when an identifier is branch-ambiguous.
+        if source_name and source_id:
+            output.append(f"  Source: {source_name} (id: {source_id})")
+        elif source_name:
             output.append(f"  Source: {source_name}")
+        elif source_id:
+            output.append(f"  Source: (id: {source_id})")
         if content_byte_size is not None:
             output.append(f"  Size: {_format_byte_size(content_byte_size)}")
         if description:

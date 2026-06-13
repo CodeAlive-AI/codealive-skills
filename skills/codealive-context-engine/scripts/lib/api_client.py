@@ -524,6 +524,7 @@ public class CredReader {{
     def fetch_artifacts(
         self,
         identifiers: List[str],
+        data_source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Retrieve full content for code artifacts by their identifiers.
@@ -536,6 +537,10 @@ public class CredReader {{
 
         Args:
             identifiers: List of artifact identifiers from search results (max 20)
+            data_source: Optional data-source Name or Id to disambiguate an identifier that
+                exists in more than one data source. Copy the `dataSource.name`/`dataSource.id`
+                from a search result. Omit for normal lookups; an ambiguous identifier without
+                it returns a 409 listing the candidate data sources.
 
         Returns:
             Dict with 'artifacts' list. Each artifact has identifier, content,
@@ -545,6 +550,8 @@ public class CredReader {{
             the full list and other relationship profiles.
         """
         body: Dict[str, Any] = {"identifiers": identifiers}
+        if data_source:
+            body["dataSource"] = data_source
         return self._make_request("POST", "/api/search/artifacts", body=body)
 
     def get_artifact_relationships(
@@ -552,6 +559,7 @@ public class CredReader {{
         identifier: str,
         profile: str = "callsOnly",
         max_count_per_type: int = 50,
+        data_source: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Retrieve relationship groups for a single artifact by profile.
@@ -569,6 +577,9 @@ public class CredReader {{
                      - "referencesOnly": symbol references
             max_count_per_type: Max related artifacts per relationship type
                                 (1–1000, default 50).
+            data_source: Optional data-source Name or Id to disambiguate a source identifier
+                that exists in more than one data source. Omit for normal lookups; an ambiguous
+                identifier without it returns a 409 listing the candidate data sources.
 
         Returns:
             Dict with sourceIdentifier, profile, found, and a list of
@@ -594,6 +605,8 @@ public class CredReader {{
             "profile": api_profile,
             "maxCountPerType": max_count_per_type,
         }
+        if data_source:
+            body["dataSource"] = data_source
         return self._make_request(
             "POST", "/api/search/artifact-relationships", body=body
         )
@@ -665,8 +678,8 @@ def main():
         print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
         print("  semantic-search <query> <data_source1> [data_source2...] [--path PATH] [--ext EXT] [--max-results N]")
         print("  grep-search <query> <data_source1> [data_source2...] [--regex] [--path PATH] [--ext EXT] [--max-results N]")
-        print("  fetch <identifier1> [identifier2...]")
-        print("  relationships <identifier> [--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly] [--max-count N]")
+        print("  fetch <identifier1> [identifier2...] [--data-source NAME_OR_ID]")
+        print("  relationships <identifier> [--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly] [--max-count N] [--data-source NAME_OR_ID]")
         print("  chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
         sys.exit(1)
 
@@ -791,12 +804,22 @@ def main():
 
         elif command == "fetch":
             if len(sys.argv) < 3:
-                print("Usage: fetch <identifier1> [identifier2...]")
+                print("Usage: fetch <identifier1> [identifier2...] [--data-source NAME_OR_ID]")
                 sys.exit(1)
 
-            identifiers = sys.argv[2:]
+            identifiers = []
+            data_source = None
+            i = 2
+            while i < len(sys.argv):
+                arg = sys.argv[i]
+                if arg == "--data-source" and i + 1 < len(sys.argv):
+                    data_source = sys.argv[i + 1]
+                    i += 2
+                else:
+                    identifiers.append(arg)
+                    i += 1
 
-            result = client.fetch_artifacts(identifiers)
+            result = client.fetch_artifacts(identifiers, data_source=data_source)
             print(json.dumps(result, indent=2))
 
         elif command == "relationships":
@@ -807,6 +830,7 @@ def main():
             identifier = sys.argv[2]
             profile = "callsOnly"
             max_count = 50
+            data_source = None
 
             i = 3
             while i < len(sys.argv):
@@ -817,10 +841,15 @@ def main():
                 elif arg == "--max-count" and i + 1 < len(sys.argv):
                     max_count = int(sys.argv[i + 1])
                     i += 2
+                elif arg == "--data-source" and i + 1 < len(sys.argv):
+                    data_source = sys.argv[i + 1]
+                    i += 2
                 else:
                     i += 1
 
-            result = client.get_artifact_relationships(identifier, profile, max_count)
+            result = client.get_artifact_relationships(
+                identifier, profile, max_count, data_source=data_source
+            )
             print(json.dumps(result, indent=2))
 
         elif command == "chat":

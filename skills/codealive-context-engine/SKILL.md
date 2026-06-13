@@ -218,7 +218,7 @@ or your local file-read tool before drawing conclusions about behavior.
 Retrieves the full source code content for artifacts found via search. Use this for external repositories you cannot access locally.
 
 ```bash
-python scripts/fetch.py <identifier1> [identifier2...]
+python scripts/fetch.py <identifier1> [identifier2...] [--data-source NAME_OR_ID]
 ```
 
 | Constraint | Value |
@@ -226,11 +226,26 @@ python scripts/fetch.py <identifier1> [identifier2...]
 | Max identifiers per request | 20 |
 | Identifiers source | `identifier` field from search results |
 | Identifier format | `{owner/repo}::{path}::{symbol}` (symbols), `{owner/repo}::{path}` (files) |
+| `--data-source NAME_OR_ID` | Optional. Data source Name or Id (from a result's `Source:` line) to disambiguate an identifier indexed in more than one data source |
 
 For function-like artifacts the response includes a small **relationships
 preview** (up to 3 outgoing/incoming calls per direction). To see the full
 call graph, inheritance, or references, run `relationships.py` with the
 artifact's identifier.
+
+**Disambiguating an identifier that lives in more than one data source.** Artifact
+identifiers are unique only per data source, so the same identifier can belong to
+more than one data source. If you fetch such an identifier without `--data-source`,
+the backend returns a **409** listing the candidate data sources instead of picking
+one for you. Every listed candidate **will** resolve, so the workflow is: call without
+`--data-source` → read the 409 candidates → try one → if that data source isn't the one
+you want, try the next. To resolve it: take the
+`Source:` name or id shown next to the search result you want and pass it back —
+`python scripts/fetch.py <identifier> --data-source "backend"` (or the id).
+The same `--data-source` flag works on `relationships.py`. If a `--data-source`-scoped
+call finds nothing (the script prints a "nothing was found in data source …" hint),
+the identifier belongs to a different data source or the selector is wrong: retry with
+a different `Source:` value, or drop `--data-source` to get the 409 candidate list.
 
 ### `relationships.py` — Drill into an Artifact's Relationship Graph
 
@@ -241,7 +256,7 @@ identifier and want to understand how the artifact relates to the rest of the
 codebase.
 
 ```bash
-python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
+python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N] [--data-source NAME_OR_ID]
 ```
 
 | Option | Description |
@@ -251,6 +266,7 @@ python scripts/relationships.py <identifier> [--profile PROFILE] [--max-count N]
 | `--profile allRelevant` | Calls + inheritance (4 groups) |
 | `--profile referencesOnly` | Symbol references |
 | `--max-count N` | Max related artifacts per relationship type (1–1000, default 50) |
+| `--data-source NAME_OR_ID` | Optional. Data source Name or Id to disambiguate an identifier indexed in more than one data source (same 409 contract as `fetch.py`) |
 | `--json` | Emit the raw JSON response instead of the formatted view |
 
 **When this adds value vs the fetch preview:**
