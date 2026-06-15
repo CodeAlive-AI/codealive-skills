@@ -3,7 +3,7 @@
 CodeAlive Fetch - Retrieve full content for code artifacts
 
 Usage:
-    python fetch.py <identifier1> [identifier2...]
+    python fetch.py <identifier1> [identifier2...] [--data-source NAME_OR_ID]
 
 Examples:
     # Fetch a single artifact (symbol)
@@ -15,9 +15,17 @@ Examples:
     # Fetch multiple artifacts
     python fetch.py "my-org/backend::src/auth.py::login" "my-org/backend::src/utils.py::helper"
 
+    # Disambiguate an identifier that exists in more than one data source
+    # (use the dataSource name or id from a search result)
+    python fetch.py "my-org/backend::src/auth.py::login" --data-source "backend"
+
 Identifiers come from semantic/grep search results (the `identifier` field).
 The format is: {owner/repo}::{path}::{symbol} (for symbols/chunks)
                {owner/repo}::{path} (for files)
+
+Pass --data-source (a data source Name or Id from a search result's `dataSource`)
+to disambiguate an identifier that exists in more than one data source. Without it,
+an ambiguous identifier returns a 409 listing the candidate data sources.
 
 Maximum 20 identifiers per request.
 """
@@ -83,11 +91,23 @@ def _format_relationships_preview(relationships: dict) -> list:
     return lines
 
 
-def format_artifacts(data: dict) -> str:
+def _data_source_miss_hint(data_source: str) -> str:
+    """Recovery hint when a data-source-scoped fetch returns nothing."""
+    return (
+        f'\n💡 Hint: nothing was found in data source "{data_source}". The identifier may belong to a '
+        "different data source, or the --data-source value may be wrong. Try: re-run with --data-source "
+        "set to a different candidate (use the Source name or id from your search results, or run "
+        "datasources.py), or drop --data-source entirely — an ambiguous identifier then returns a 409 "
+        "listing the candidate data sources to choose from."
+    )
+
+
+def format_artifacts(data: dict, data_source: str = None) -> str:
     """Format fetched artifacts for display."""
     artifacts = data.get("artifacts", [])
     if not artifacts:
-        return "No artifacts returned."
+        msg = "No artifacts returned."
+        return msg + _data_source_miss_hint(data_source) if data_source else msg
 
     output = []
     count = 0
@@ -119,7 +139,8 @@ def format_artifacts(data: dict) -> str:
                     has_any_relationships = True
 
     if not output:
-        return "No artifacts found."
+        msg = "No artifacts found."
+        return msg + _data_source_miss_hint(data_source) if data_source else msg
 
     output.append(f"\n({count} artifact(s))")
 
@@ -144,7 +165,26 @@ def main():
             sys.exit(1)
         sys.exit(0)
 
-    identifiers = sys.argv[1:]
+    identifiers = []
+    data_source = None
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == "--data-source":
+            # Match the flag first, then require a value — otherwise a trailing "--data-source"
+            # with no value would be silently appended as an identifier.
+            if i + 1 >= len(sys.argv):
+                print("Error: --data-source requires a value.", file=sys.stderr)
+                sys.exit(1)
+            data_source = sys.argv[i + 1]
+            i += 2
+        else:
+            identifiers.append(arg)
+            i += 1
+
+    if not identifiers:
+        print("Error: At least one identifier is required.", file=sys.stderr)
+        sys.exit(1)
 
     if len(identifiers) > 20:
         print("Error: Maximum 20 identifiers per request.", file=sys.stderr)
@@ -154,11 +194,13 @@ def main():
         client = CodeAliveClient()
 
         print(f"📥 Fetching {len(identifiers)} artifact(s)", file=sys.stderr)
+        if data_source:
+            print(f"   data source: {data_source}", file=sys.stderr)
         print(file=sys.stderr)
 
-        result = client.fetch_artifacts(identifiers=identifiers)
+        result = client.fetch_artifacts(identifiers=identifiers, data_source=data_source)
 
-        print(format_artifacts(result))
+        print(format_artifacts(result, data_source=data_source))
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)

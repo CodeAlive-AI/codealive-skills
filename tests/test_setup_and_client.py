@@ -325,6 +325,70 @@ def test_api_client_get_artifact_relationships_rejects_unknown_profile():
         raise AssertionError("ValueError was not raised for unknown profile")
 
 
+def test_api_client_fetch_artifacts_forwards_data_source():
+    received_bodies: list = []
+
+    def fetch_handler(request):
+        body = json.loads(request["body"])
+        received_bodies.append(body)
+        return 200, {"artifacts": []}, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/search/artifacts"): fetch_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        # Omitted by default…
+        client.fetch_artifacts(["org/repo::src/a.py::F"])
+        # …forwarded as DataSource when provided.
+        client.fetch_artifacts(["org/repo::src/a.py::F"], data_source="backend")
+
+    assert "dataSource" not in received_bodies[0]
+    assert received_bodies[1]["dataSource"] == "backend"
+
+
+def test_api_client_get_artifact_relationships_forwards_data_source():
+    received_bodies: list = []
+
+    def relationships_handler(request):
+        body = json.loads(request["body"])
+        received_bodies.append(body)
+        return 200, {"sourceIdentifier": body["identifier"], "profile": body["profile"], "found": True, "relationships": []}, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/search/artifact-relationships"): relationships_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        client.get_artifact_relationships("org/repo::src/a.py::F")
+        client.get_artifact_relationships("org/repo::src/a.py::F", data_source="ds-main")
+
+    assert "dataSource" not in received_bodies[0]
+    assert received_bodies[1]["dataSource"] == "ds-main"
+
+
+def test_api_client_ambiguous_409_surfaces_candidate_data_sources():
+    # When an identifier is ambiguous and no data_source is supplied, the backend returns a 409
+    # whose detail lists the candidate data sources. The client must surface those candidates so
+    # the agent can retry with --data-source rather than inventing a result.
+    def fetch_handler(request):
+        return 409, {
+            "title": "Ambiguous data source",
+            "detail": "Identifier matches 2 data sources: Name='backend' Id='ds-main', Name='backend-legacy' Id='ds-master'",
+        }, {}
+
+    with mock_codealive_server(
+        {("POST", "/api/search/artifacts"): fetch_handler}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        try:
+            client.fetch_artifacts(["org/repo::src/a.py::F"])
+        except Exception as e:
+            message = str(e)
+            assert "409" in message
+            assert "backend" in message and "backend-legacy" in message
+        else:
+            raise AssertionError("Expected an exception for the ambiguous 409 response")
+
+
 # ===== Phase 1 — error contract & ObjectId preflight =====
 
 def test_format_codealive_error_renders_rfc9457_problem_details():

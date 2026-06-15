@@ -42,6 +42,24 @@ def format_grep_results(results: dict) -> str:
             output.append(f"  File: {file_path}")
         if result.get("identifier"):
             output.append(f"  Identifier: {result['identifier']}")
+
+        # Surface the data-source name/id so they can be passed back as --data-source to
+        # fetch.py / relationships.py when an identifier is branch-ambiguous.
+        # dataSource may be a {name, id} object or a bare string, depending on the API response
+        # shape — handle both, mirroring search.py.
+        ds = result.get("dataSource")
+        if isinstance(ds, dict):
+            ds_name = ds.get("name")
+            ds_id = ds.get("id")
+        else:
+            ds_name = ds
+            ds_id = None
+        if ds_name and ds_id:
+            output.append(f"  Source: {ds_name} (id: {ds_id})")
+        elif ds_name:
+            output.append(f"  Source: {ds_name}")
+        elif ds_id:
+            output.append(f"  Source: (id: {ds_id})")
         if result.get("matchCount") is not None:
             output.append(f"  Match count: {result['matchCount']}")
 

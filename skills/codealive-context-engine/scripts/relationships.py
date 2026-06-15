@@ -11,7 +11,11 @@ script returns a small "preview" of relationships (up to 3 calls per direction);
 this script gives you the full list and lets you switch profiles.
 
 Usage:
-    python relationships.py <identifier> [--profile PROFILE] [--max-count N]
+    python relationships.py <identifier> [--profile PROFILE] [--max-count N] [--data-source NAME_OR_ID]
+
+Pass --data-source (a data source Name or Id from a search result's `dataSource`)
+to disambiguate an identifier that exists in more than one data source. Without it,
+an ambiguous identifier returns a 409 listing the candidate data sources.
 
 Profiles:
     callsOnly         (default) outgoing + incoming calls
@@ -61,7 +65,7 @@ PROFILE_LABELS = {
 }
 
 
-def format_relationships(data: dict) -> str:
+def format_relationships(data: dict, data_source: str = None) -> str:
     """Format an artifact-relationships response for display."""
     source_id = data.get("sourceIdentifier") or "<unknown>"
     raw_profile = data.get("profile") or ""
@@ -69,10 +73,19 @@ def format_relationships(data: dict) -> str:
     found = bool(data.get("found"))
 
     if not found:
-        return (
-            f"Artifact not found or inaccessible: {source_id}\n"
-            f"(profile={profile})"
-        )
+        lines = [
+            f"Artifact not found or inaccessible: {source_id}",
+            f"(profile={profile})",
+        ]
+        if data_source:
+            lines.append(
+                f'\n💡 Hint: nothing matched in data source "{data_source}". The identifier may belong '
+                "to a different data source, or the --data-source value may be wrong. Try: re-run with "
+                "--data-source set to a different candidate (use the Source name or id from your "
+                "search results, or run datasources.py), or drop --data-source entirely — an ambiguous "
+                "identifier then returns a 409 listing the candidate data sources to choose from."
+            )
+        return "\n".join(lines)
 
     relationships = data.get("relationships") or []
 
@@ -142,19 +155,34 @@ def main():
     identifier = sys.argv[1]
     profile = "callsOnly"
     max_count = 50
+    data_source = None
 
     i = 2
     while i < len(sys.argv):
         arg = sys.argv[i]
-        if arg == "--profile" and i + 1 < len(sys.argv):
+        # Value-bearing flags match on the name first, then require a value, so a trailing flag with
+        # no value reports "requires a value" rather than the misleading "unknown argument" below.
+        if arg == "--profile":
+            if i + 1 >= len(sys.argv):
+                print("Error: --profile requires a value.", file=sys.stderr)
+                sys.exit(1)
             profile = sys.argv[i + 1]
             i += 2
-        elif arg == "--max-count" and i + 1 < len(sys.argv):
+        elif arg == "--max-count":
+            if i + 1 >= len(sys.argv):
+                print("Error: --max-count requires a value.", file=sys.stderr)
+                sys.exit(1)
             try:
                 max_count = int(sys.argv[i + 1])
             except ValueError:
                 print(f"Error: --max-count expects an integer, got '{sys.argv[i + 1]}'", file=sys.stderr)
                 sys.exit(1)
+            i += 2
+        elif arg == "--data-source":
+            if i + 1 >= len(sys.argv):
+                print("Error: --data-source requires a value.", file=sys.stderr)
+                sys.exit(1)
+            data_source = sys.argv[i + 1]
             i += 2
         elif arg == "--json":
             # Handled below — we strip it before calling format_relationships
@@ -171,18 +199,21 @@ def main():
 
         print(f"🔗 Fetching {profile} relationships for: {identifier}", file=sys.stderr)
         print(f"⚙️  max-count={max_count}", file=sys.stderr)
+        if data_source:
+            print(f"   data source: {data_source}", file=sys.stderr)
         print(file=sys.stderr)
 
         result = client.get_artifact_relationships(
             identifier=identifier,
             profile=profile,
             max_count_per_type=max_count,
+            data_source=data_source,
         )
 
         if as_json:
             print(json.dumps(result, indent=2))
         else:
-            print(format_relationships(result))
+            print(format_relationships(result, data_source=data_source))
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
