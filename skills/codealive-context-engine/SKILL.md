@@ -233,6 +233,11 @@ preview** (up to 3 outgoing/incoming calls per direction). To see the full
 call graph, inheritance, or references, run `relationships.py` with the
 artifact's identifier.
 
+**Missing identifiers.** If an identifier cannot be resolved (or is outside your access
+scope), `fetch.py` does not drop it silently — it prints a "not found" section listing each
+concrete identifier, with a hint to re-check those ids and retry the problematic ones. Tell
+the user which artifacts could not be fetched instead of omitting them.
+
 **Disambiguating an identifier that lives in more than one data source.** Artifact
 identifiers are unique only per data source, so the same identifier can belong to
 more than one data source. If you fetch such an identifier without `--data-source`,

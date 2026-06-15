@@ -102,24 +102,59 @@ def _data_source_miss_hint(data_source: str) -> str:
     )
 
 
-def format_artifacts(data: dict, data_source: str = None) -> str:
-    """Format fetched artifacts for display."""
+def _not_found_lines(not_found: list) -> list:
+    """Lines listing requested identifiers the backend could not resolve or that are
+    outside the caller's access scope, with a re-check/retry hint."""
+    lines = [
+        f"\n{'='*60}",
+        f"⚠️  {len(not_found)} requested identifier(s) not found or inaccessible:",
+    ]
+    for identifier in not_found:
+        lines.append(f"   • {identifier}")
+    lines.append(f"{'='*60}")
+    lines.append(
+        "💡 Do NOT silently omit these. A not-found entry means the identifier did not "
+        "resolve, or points outside the data sources this key can read — it is NOT proof "
+        "the code is absent. Re-check those exact identifiers, re-run search.py or grep.py "
+        "to get fresh ids, then re-fetch the problematic ones; if they still cannot be "
+        "retrieved, tell the user which artifacts could not be fetched."
+    )
+    return lines
+
+
+def format_artifacts(data: dict, data_source: str = None, requested: list = None) -> str:
+    """Format fetched artifacts for display.
+
+    Requested identifiers the backend could not resolve — or that are outside the caller's
+    access scope — come back with ``found: false`` (older backends omit the flag and return
+    ``content: null``). They are NOT dropped silently: each concrete identifier is listed in
+    a "not found" section with a hint to re-check the ids and retry the problematic ones.
+    A ``found: true`` artifact with empty content is still shown (it was located).
+    ``requested`` is the original identifier list; it backstops the diff so an id the
+    backend never echoed back is still surfaced as not-found.
+    """
     artifacts = data.get("artifacts", [])
-    if not artifacts:
-        msg = "No artifacts returned."
-        return msg + _data_source_miss_hint(data_source) if data_source else msg
 
     output = []
     count = 0
     has_any_relationships = False
+    returned_identifiers = set()
+    not_found = []
 
     for artifact in artifacts:
+        identifier = artifact.get("identifier", "unknown")
+        returned_identifiers.add(identifier)
+
         content = artifact.get("content")
-        if content is None:
+        # Prefer the backend's explicit `found` flag; fall back to content-is-null for
+        # older backends that don't emit it yet.
+        found = artifact.get("found")
+        is_missing = (found is False) if found is not None else (content is None)
+        if is_missing:
+            not_found.append(identifier)
             continue
 
         count += 1
-        identifier = artifact.get("identifier", "unknown")
         content_byte_size = artifact.get("contentByteSize")
 
         size_str = f" ({content_byte_size} bytes)" if content_byte_size else ""
@@ -127,7 +162,7 @@ def format_artifacts(data: dict, data_source: str = None) -> str:
         output.append(f"📄 {identifier}{size_str}")
         output.append(f"{'='*60}")
         start_line = artifact.get("startLine") or 1
-        output.append(_add_line_numbers(content, start_line))
+        output.append(_add_line_numbers(content or "", start_line))
 
         relationships = artifact.get("relationships")
         if relationships is not None:
@@ -138,11 +173,14 @@ def format_artifacts(data: dict, data_source: str = None) -> str:
                 if _has_any_calls(relationships):
                     has_any_relationships = True
 
-    if not output:
-        msg = "No artifacts found."
-        return msg + _data_source_miss_hint(data_source) if data_source else msg
+    # Backstop: any requested identifier the backend never echoed back is also missing.
+    if requested:
+        for identifier in requested:
+            if identifier not in returned_identifiers and identifier not in not_found:
+                not_found.append(identifier)
 
-    output.append(f"\n({count} artifact(s))")
+    if count > 0:
+        output.append(f"\n({count} artifact(s))")
 
     if has_any_relationships:
         output.append(
@@ -153,6 +191,17 @@ def format_artifacts(data: dict, data_source: str = None) -> str:
             "     python relationships.py <identifier> "
             "[--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly]"
         )
+
+    if not_found:
+        output.extend(_not_found_lines(not_found))
+
+    if count == 0:
+        # Nothing was actually fetched. Keep the data-source-specific recovery hint when a
+        # selector was supplied; the not-found section above already lists the ids.
+        if data_source:
+            output.append(_data_source_miss_hint(data_source))
+        if not output:
+            return "No artifacts returned."
 
     return "\n".join(output)
 
@@ -200,7 +249,7 @@ def main():
 
         result = client.fetch_artifacts(identifiers=identifiers, data_source=data_source)
 
-        print(format_artifacts(result, data_source=data_source))
+        print(format_artifacts(result, data_source=data_source, requested=identifiers))
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
