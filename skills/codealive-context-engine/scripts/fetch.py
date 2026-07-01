@@ -235,8 +235,8 @@ def main():
         print("Error: At least one identifier is required.", file=sys.stderr)
         sys.exit(1)
 
-    if len(identifiers) > 20:
-        print("Error: Maximum 20 identifiers per request.", file=sys.stderr)
+    if len(identifiers) > 50:
+        print("Error: Maximum 50 identifiers per request.", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -248,8 +248,7 @@ def main():
         print(file=sys.stderr)
 
         result = client.fetch_artifacts(identifiers=identifiers, data_source=data_source)
-
-        print(format_artifacts(result, data_source=data_source, requested=identifiers))
+        print(result)
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)

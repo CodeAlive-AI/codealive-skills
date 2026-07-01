@@ -125,7 +125,7 @@ def main():
 
     try:
         client = CodeAliveClient()
-        results = client.grep_search(
+        result = client.grep_search(
             query=query,
             data_sources=data_sources,
             paths=paths or None,
@@ -133,7 +133,7 @@ def main():
             max_results=max_results,
             regex=regex,
         )
-        print(format_grep_results(results))
+        print(result)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -112,7 +112,7 @@ def format_datasources(datasources: list, as_json: bool = False, message: str = 
 
 def main():
     """CLI interface for listing data sources."""
-    alive_only = True
+    ready_only = True
     as_json = False
     query = None
 
@@ -121,7 +121,7 @@ def main():
     while i < len(args):
         arg = args[i]
         if arg == "--all":
-            alive_only = False
+            ready_only = False
         elif arg == "--json":
             as_json = True
         elif arg == "--query":
@@ -137,14 +137,15 @@ def main():
 
     try:
         client = CodeAliveClient()
-        result = client.get_datasources(alive_only=alive_only, query=query)
-        if isinstance(result, dict):
-            datasources = result.get("dataSources", [])
-            message = result.get("message", "")
+        result = client.get_datasources(
+            ready_only=ready_only,
+            query=query,
+            output_format="json" if as_json else "agentic",
+        )
+        if as_json:
+            print(json.dumps(result, indent=2))
         else:
-            datasources = result
-            message = ""
-        print(format_datasources(datasources, as_json, message))
+            print(result)
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)
