@@ -89,7 +89,7 @@ When unsure, start with `search.py` — it covers more ground; pivot to `grep.py
 - Use only local `Grep`/`Glob` when the question is about an external repo or a cross-repo concept.
 - Trust the `description` field of search results as ground truth — always fetch or read the real source.
 - Run a single empty search and conclude "nothing found" — try at least 2 different query phrasings before giving up.
-- Run `chat.py`. Only do so when the user explicitly asks (e.g. "use chat", "use codebase_consultant").
+- Run `chat.py`. Only do so when the user explicitly asks (e.g. "use chat", "call the chat tool").
 
 ## Output Format
 
