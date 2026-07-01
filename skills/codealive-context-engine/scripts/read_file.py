@@ -9,6 +9,14 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from api_client import CodeAliveClient
 
 
+def parse_int_option(name: str, value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Error: {name} expects an integer, got '{value}'", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     if len(sys.argv) < 2 or sys.argv[1] == "--help":
         print("Usage: python read_file.py <path> [--data-source NAME_OR_ID] [--start-line N] [--end-line N]")
@@ -30,9 +38,9 @@ def main():
             if arg == "--data-source":
                 data_source = value
             elif arg == "--start-line":
-                start_line = int(value)
+                start_line = parse_int_option(arg, value)
             else:
-                end_line = int(value)
+                end_line = parse_int_option(arg, value)
             i += 2
         else:
             print(f"Error: unknown argument '{arg}'", file=sys.stderr)

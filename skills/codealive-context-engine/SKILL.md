@@ -228,7 +228,7 @@ python scripts/fetch.py <identifier1> [identifier2...] [--data-source NAME_OR_ID
 
 | Constraint | Value |
 |-----------|-------|
-| Max identifiers per request | 20 |
+| Max identifiers per request | 50 |
 | Identifiers source | `identifier` field from search results |
 | Identifier format | `{owner/repo}::{path}::{symbol}` (symbols), `{owner/repo}::{path}` (files) |
 | `--data-source NAME_OR_ID` | Optional. Data source Name or Id (from a result's `Source:` line) to disambiguate an identifier indexed in more than one data source |

@@ -9,6 +9,14 @@ sys.path.insert(0, str(Path(__file__).parent / "lib"))
 from api_client import CodeAliveClient
 
 
+def parse_int_option(name: str, value: str) -> int:
+    try:
+        return int(value)
+    except ValueError:
+        print(f"Error: {name} expects an integer, got '{value}'", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     data_source = None
     path = None
@@ -33,11 +41,11 @@ def main():
             elif arg == "--path":
                 path = value
             elif arg == "--max-depth":
-                max_depth = int(value)
+                max_depth = parse_int_option(arg, value)
             elif arg == "--max-nodes":
-                max_nodes = int(value)
+                max_nodes = parse_int_option(arg, value)
             else:
-                output_depth = int(value)
+                output_depth = parse_int_option(arg, value)
             i += 2
         else:
             print(f"Error: unknown argument '{arg}'", file=sys.stderr)

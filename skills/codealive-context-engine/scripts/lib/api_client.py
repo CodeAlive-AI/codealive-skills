@@ -610,10 +610,10 @@ public class CredReader {{
             (identifier, filePath, startLine, shortSummary).
         """
         profile_map = {
-            "callsOnly": "CallsOnly",
-            "inheritanceOnly": "InheritanceOnly",
-            "allRelevant": "AllRelevant",
-            "referencesOnly": "ReferencesOnly",
+            "callsOnly": "calls_only",
+            "inheritanceOnly": "inheritance_only",
+            "allRelevant": "all_relevant",
+            "referencesOnly": "references_only",
         }
         api_profile = profile_map.get(profile)
         if api_profile is None:
@@ -754,7 +754,7 @@ def main():
                     print("Usage: datasources [--all] [--query TASK]")
                     sys.exit(1)
                 query = sys.argv[query_index + 1]
-            result = client.get_datasources(ready_only=ready_only, query=query)
+            result = client.get_datasources(ready_only=ready_only, query=query, output_format="json")
             print(json.dumps(result, indent=2))
 
         elif command == "search":
