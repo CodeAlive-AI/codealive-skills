@@ -556,7 +556,7 @@ public class CredReader {{
                            {owner/repo}::{path} (for files)
 
         Args:
-            identifiers: List of artifact identifiers from search results (max 20)
+            identifiers: List of artifact identifiers from search results (max 50)
             data_source: Optional data-source Name or Id to disambiguate an identifier that
                 exists in more than one data source. Copy the `dataSource.name`/`dataSource.id`
                 from a search result. Omit for normal lookups; an ambiguous identifier without
