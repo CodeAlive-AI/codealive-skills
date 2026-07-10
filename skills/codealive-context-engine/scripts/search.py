@@ -168,7 +168,7 @@ def main():
             print(f"Extensions: {', '.join(extensions)}", file=sys.stderr)
         print(file=sys.stderr)
 
-        results = client.semantic_search(
+        result = client.semantic_search(
             query=query,
             data_sources=data_sources,
             paths=paths or None,
@@ -176,7 +176,7 @@ def main():
             max_results=max_results,
         )
 
-        print(format_search_results(results))
+        print(result)
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)

@@ -40,15 +40,25 @@ Do NOT retry the failed script until setup completes successfully.
 | **List Data Sources** | `datasources.py` | Instant | Free | Discovering indexed repos and workspaces. With `--query "task"`, runs an AI relevance filter (low cost, not instant) returning only the relevant sources |
 | **Semantic Search** | `search.py` | Fast | Low | Default discovery — finds code by meaning (concepts, behavior, architecture) |
 | **Grep Search** | `grep.py` | Fast | Low | Finds code containing a specific string or regex (identifiers, literals, patterns) |
-| **Fetch Artifacts** | `fetch.py` | Fast | Low | Retrieving full content; function-like artifacts also include up to 3 outgoing/incoming calls as a preview |
-| **Artifact Relationships** | `relationships.py` | Fast | Low | Full call graph (past the fetch preview's 3-cap), inheritance, or symbol references for one artifact |
-| **Chat with Codebase** | `chat.py` | Slow | High | **Not recommended.** Call ONLY when the user explicitly asks (e.g. "use chat"). |
+| **Repository Ontology** | `ontology.py` | Fast | Low | High-level orientation for exactly one repository |
+| **File Tree** | `tree.py` | Fast | Free | Bounded repository tree inspection |
+| **Read File** | `read_file.py` | Fast | Free | Read one repository-relative file path, optionally with a line range |
+| **Fetch Artifacts** | `fetch.py` | Fast | Free | Retrieve full content for search result identifiers |
+| **Artifact Relationships** | `relationships.py` | Fast | Free | Full call graph, inheritance, or symbol references for one artifact |
+| **ArtifactQuery Schema** | `schema.py` | Fast | Free | Inspect supported metadata query entities, fields, and examples |
+| **Artifact Metadata Query** | `metadata.py` | Fast | Low | Read-only aggregate/query analytics across indexed repositories |
+| **Chat with Codebase** | `chat.py` | Slow | High | Stateless synthesized Q&A. Call ONLY when the user explicitly asks. |
 
 **Cost guidance:** `semantic_search` and `grep_search` are the default starting point — fast and cheap. Use `fetch_artifacts` to load full source and `get_artifact_relationships` to trace call graphs. All four tools are low-cost.
 
-**Chat is not recommended:** `chat.py` invokes an LLM on the server side, can take up to 30 seconds, and is significantly more expensive per call. Do NOT call it unless the user has explicitly requested it (e.g. "use chat", "use codebase_consultant", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" do NOT qualify — they refer to search tools.
+**Chat is not recommended:** `chat.py` invokes an LLM on the server side, can take substantially longer than retrieval, and is significantly more expensive per call. It is stateless in v3: include prior findings, artifact identifiers, assumptions, scope, and constraints in each question. Do NOT call it unless the user has explicitly requested it (e.g. "use chat", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" do NOT qualify — they refer to search tools.
 
-**Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `search.py`, `grep.py`, `fetch.py`, `relationships.py`, and local file reads.
+**Repairable tool errors:** Treat a returned `<tool_error>` as a failed call,
+not as an empty successful result. Follow its `<try>` guidance, repair the
+arguments, and retry only when the `<retry>` field permits it. Tool API v3
+always preserves the same error in `obj.error` for JSON-mode automation.
+
+**Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `ontology.py`, `search.py`, `grep.py`, `fetch.py`, `tree.py`/`read_file.py`, `relationships.py`, `metadata.py`, and local file reads.
 
 **Three-step workflow (search → triage → load real content):**
 1. **Search** — find relevant code locations with descriptions and identifiers
@@ -144,11 +154,11 @@ python scripts/relationships.py "my-org/backend::src/svc.py::Service" --profile 
 ### 5. Chat with codebase (not recommended — only if user explicitly asks)
 
 ```bash
-python scripts/chat.py "Explain the authentication flow" my-backend
-python scripts/chat.py "What about security considerations?" --continue CONV_ID
+python scripts/chat.py "Explain the authentication flow. Prior context: none." my-backend
+python scripts/chat.py "Given these prior findings and identifiers: ..., what about security considerations?" my-backend
 ```
 
-**Do not call chat unless the user explicitly asks for it.** Use search, grep, fetch, and relationships for all other tasks.
+**Do not call chat unless the user explicitly asks for it.** v3 chat is stateless and has no `conversation_id`; include all needed context in each question. Use ontology, search, grep, fetch/read, relationships, and metadata queries for all other tasks.
 
 ## Tool Reference
 
@@ -223,7 +233,7 @@ python scripts/fetch.py <identifier1> [identifier2...] [--data-source NAME_OR_ID
 
 | Constraint | Value |
 |-----------|-------|
-| Max identifiers per request | 20 |
+| Max identifiers per request | 50 |
 | Identifiers source | `identifier` field from search results |
 | Identifier format | `{owner/repo}::{path}::{symbol}` (symbols), `{owner/repo}::{path}` (files) |
 | `--data-source NAME_OR_ID` | Optional. Data source Name or Id (from a result's `Source:` line) to disambiguate an identifier indexed in more than one data source |
@@ -295,23 +305,17 @@ don't match the artifact's real logic.
 
 ### `chat.py` — Chat with Codebase (not recommended)
 
-**Do NOT call unless the user explicitly asks** (e.g. "use chat", "use codebase_consultant", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" refer to search tools, not chat.
+**Do NOT call unless the user explicitly asks** (e.g. "use chat", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" refer to search tools, not chat.
 
-Sends your question to an AI consultant that has full context of the indexed codebase. Returns synthesized, ready-to-use answers. Supports conversation continuity for follow-ups.
+Sends your self-contained question to an AI consultant that has full context of the selected indexed codebase. Returns synthesized, ready-to-use answers.
 
-**This is slow and expensive** — runs an LLM on the server side, up to 30 seconds per call. For all standard tasks (finding code, understanding architecture, debugging), use `search.py`, `grep.py`, `fetch.py`, and `relationships.py` instead.
+**This is slow and expensive** — runs an LLM on the server side and can take substantially longer than retrieval. It is stateless in v3, so include prior findings, identifiers, assumptions, scope, and constraints in each question. For all standard tasks (finding code, understanding architecture, debugging), use ontology, search, grep, fetch/read, relationships, and metadata queries instead.
 
 ```bash
 python scripts/chat.py <question> <data_sources...> [options]
 ```
 
-| Option | Description |
-|--------|-------------|
-| `--continue <id>` | Continue a previous conversation (saves context and cost) |
-
-**Conversation continuity:** Every successful response includes a `conversation_id` (a 24-character hex Mongo ObjectId, e.g. `69fceb3e7b2a6a7efdd18180`) and a `message_id` of the same format. Pass `--continue <conversation_id>` for follow-up questions — this preserves context and is cheaper than starting fresh.
-
-Format guarantee: any value not matching `^[0-9a-fA-F]{24}$` is rejected client-side before the request is sent.
+There is no public `conversation_id` in v3. For follow-ups, restate the relevant context in the next `question`.
 
 ## Data Sources
 

@@ -208,12 +208,13 @@ def main():
             profile=profile,
             max_count_per_type=max_count,
             data_source=data_source,
+            output_format="json" if as_json else "agentic",
         )
 
         if as_json:
             print(json.dumps(result, indent=2))
         else:
-            print(format_relationships(result, data_source=data_source))
+            print(result)
 
     except Exception as e:
         print(f"❌ Error: {e}", file=sys.stderr)

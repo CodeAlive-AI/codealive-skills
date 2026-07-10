@@ -4,7 +4,6 @@ Handles authentication and HTTP requests to the CodeAlive API.
 """
 
 import os
-import re
 import urllib.parse
 import sys
 import json
@@ -14,10 +13,7 @@ import urllib.parse
 from typing import Optional, Dict, Any, List
 
 
-# 24-character hex Mongo ObjectId. The CodeAlive REST API rejects any other
-# shape for conversation_id / message_id with a 400; preflight locally so
-# agents get an actionable error before the network round-trip.
-_OBJECT_ID_RE = re.compile(r"^[0-9a-fA-F]{24}$")
+CLIENT_VERSION = "skills-v3"
 
 # Pre-filter scoped candidate count, emitted by the backend only on relevance-filtered
 # (query'd) data source listings. Lowercase because _make_request lowercases header
@@ -331,7 +327,8 @@ public class CredReader {{
         endpoint: str,
         params: Optional[Dict[str, Any]] = None,
         body: Optional[Dict[str, Any]] = None,
-        return_headers: bool = False
+        return_headers: bool = False,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> Any:
         """
         Make an HTTP request to the CodeAlive API.
@@ -359,6 +356,8 @@ public class CredReader {{
             "Content-Type": "application/json",
             "Accept": "application/json, application/problem+json",
         }
+        if extra_headers:
+            headers.update(extra_headers)
 
         data = None
         if body:
@@ -416,14 +415,50 @@ public class CredReader {{
                 f"Check your network connection and CODEALIVE_BASE_URL setting."
             )
 
+    def tool(
+        self,
+        name: str,
+        payload: Optional[Dict[str, Any]] = None,
+        output_format: str = "agentic",
+    ) -> Any:
+        """Call a CodeAlive Tool API v3 tool.
+
+        Skills default to backend-rendered agentic output. Use output_format="json"
+        for scripts that need the canonical obj envelope.
+        """
+        clean_payload = {
+            key: value
+            for key, value in (payload or {}).items()
+            if value is not None and value != [] and value != ""
+        }
+        clean_payload["output_format"] = output_format
+        envelope = self._make_request(
+            "POST",
+            f"/api/tools/{name}",
+            body=clean_payload,
+            extra_headers={
+                "X-CodeAlive-Integration": "skills",
+                "X-CodeAlive-Tool": name,
+                "X-CodeAlive-Client": CLIENT_VERSION,
+            },
+        )
+        if output_format == "agentic":
+            return envelope.get("rendered", "")
+        if output_format == "json":
+            return envelope.get("obj", {})
+        return envelope
+
     def get_datasources(
-        self, alive_only: bool = True, query: Optional[str] = None
+        self,
+        ready_only: bool = True,
+        query: Optional[str] = None,
+        output_format: str = "agentic",
     ) -> Any:
         """
         Get available data sources (repositories and workspaces).
 
         Args:
-            alive_only: If True, only return data sources ready for use. If False, return all.
+            ready_only: If True, only return data sources ready for use. If False, return all.
             query: Optional natural-language task/intent (e.g. "add OAuth to checkout"). When
                 provided, the backend runs an agentic relevance filter and returns ONLY the data
                 sources relevant to that intent, each with a `relevanceReason` explaining why.
@@ -434,46 +469,26 @@ public class CredReader {{
             sources were omitted as non-relevant (and how many of the total) or that relevance
             filtering was unavailable and the FULL list is returned.
         """
-        endpoint = "/api/datasources/ready" if alive_only else "/api/datasources/all"
-        if not query or not query.strip():
-            return self._make_request("GET", endpoint)
-
-        datasources, headers = self._make_request(
-            "GET", endpoint, params={"query": query}, return_headers=True
+        return self.tool(
+            "get_data_sources",
+            {"ready_only": ready_only, "query": query},
+            output_format=output_format,
         )
-        return {
-            "dataSources": datasources,
-            "message": relevance_message(datasources, headers.get(_TOTAL_DATA_SOURCES_HEADER)),
-        }
 
     def search(
         self,
         query: str,
         data_sources: List[str],
         mode: str = "auto",
-        description_detail: str = "short"
-    ) -> Dict[str, Any]:
-        """
-        Search for code using natural language queries.
-
-        Args:
-            query: Natural language description of what to find
-            data_sources: List of repository or workspace names to search
-            mode: Search mode - "auto" (default), "fast", or "deep"
-            description_detail: Detail level for descriptions - "short" (default) or "full"
-
-        Returns:
-            Search results with file paths, line numbers, descriptions, and identifiers
-        """
-        detail_map = {"short": "Short", "full": "Full"}
-        params = {
-            "Query": query,
-            "Mode": mode,
-            "IncludeContent": "false",
-            "DescriptionDetail": detail_map.get(description_detail.lower(), "Short"),
-            "Names": data_sources
-        }
-        return self._make_request("GET", "/api/search", params=params)
+        description_detail: str = "short",
+        output_format: str = "agentic",
+    ) -> Any:
+        """Compatibility wrapper for the v3 semantic_search tool."""
+        return self.semantic_search(
+            query=query,
+            data_sources=data_sources,
+            output_format=output_format,
+        )
 
     def semantic_search(
         self,
@@ -482,20 +497,22 @@ public class CredReader {{
         paths: Optional[List[str]] = None,
         extensions: Optional[List[str]] = None,
         max_results: Optional[int] = None,
-    ) -> Dict[str, Any]:
-        """Search indexed artifacts semantically using the canonical API."""
-        params: Dict[str, Any] = {
-            "Query": query,
-            "Names": data_sources,
-        }
-        if paths:
-            params["Paths"] = paths
-        if extensions:
-            params["Extensions"] = extensions
-        if max_results is not None:
-            params["MaxResults"] = max_results
-
-        return self._make_request("GET", "/api/search/semantic", params=params)
+        exclude_markdown: bool = False,
+        output_format: str = "agentic",
+    ) -> Any:
+        """Search indexed artifacts semantically using Tool API v3."""
+        return self.tool(
+            "semantic_search",
+            {
+                "question": query,
+                "data_sources": data_sources,
+                "paths": paths,
+                "extensions": extensions,
+                "max_results": max_results,
+                "exclude_markdown": exclude_markdown,
+            },
+            output_format=output_format,
+        )
 
     def grep_search(
         self,
@@ -505,27 +522,30 @@ public class CredReader {{
         extensions: Optional[List[str]] = None,
         max_results: Optional[int] = None,
         regex: bool = False,
-    ) -> Dict[str, Any]:
-        """Search indexed artifacts by exact text or regex using the canonical API."""
-        params: Dict[str, Any] = {
-            "Query": query,
-            "Names": data_sources,
-            "Regex": str(regex).lower(),
-        }
-        if paths:
-            params["Paths"] = paths
-        if extensions:
-            params["Extensions"] = extensions
-        if max_results is not None:
-            params["MaxResults"] = max_results
-
-        return self._make_request("GET", "/api/search/grep", params=params)
+        exclude_markdown: bool = False,
+        output_format: str = "agentic",
+    ) -> Any:
+        """Search indexed artifacts by exact text or regex using Tool API v3."""
+        return self.tool(
+            "grep_search",
+            {
+                "query": query,
+                "data_sources": data_sources,
+                "paths": paths,
+                "extensions": extensions,
+                "max_results": max_results,
+                "exclude_markdown": exclude_markdown,
+                "regex": regex,
+            },
+            output_format=output_format,
+        )
 
     def fetch_artifacts(
         self,
         identifiers: List[str],
         data_source: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        output_format: str = "agentic",
+    ) -> Any:
         """
         Retrieve full content for code artifacts by their identifiers.
 
@@ -536,7 +556,7 @@ public class CredReader {{
                            {owner/repo}::{path} (for files)
 
         Args:
-            identifiers: List of artifact identifiers from search results (max 20)
+            identifiers: List of artifact identifiers from search results (max 50)
             data_source: Optional data-source Name or Id to disambiguate an identifier that
                 exists in more than one data source. Copy the `dataSource.name`/`dataSource.id`
                 from a search result. Omit for normal lookups; an ambiguous identifier without
@@ -549,10 +569,11 @@ public class CredReader {{
             calls per direction). Use ``get_artifact_relationships()`` to retrieve
             the full list and other relationship profiles.
         """
-        body: Dict[str, Any] = {"identifiers": identifiers}
-        if data_source:
-            body["dataSource"] = data_source
-        return self._make_request("POST", "/api/search/artifacts", body=body)
+        return self.tool(
+            "fetch_artifacts",
+            {"identifiers": identifiers, "data_source": data_source},
+            output_format=output_format,
+        )
 
     def get_artifact_relationships(
         self,
@@ -560,7 +581,8 @@ public class CredReader {{
         profile: str = "callsOnly",
         max_count_per_type: int = 50,
         data_source: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        output_format: str = "agentic",
+    ) -> Any:
         """
         Retrieve relationship groups for a single artifact by profile.
 
@@ -588,10 +610,10 @@ public class CredReader {{
             (identifier, filePath, startLine, shortSummary).
         """
         profile_map = {
-            "callsOnly": "CallsOnly",
-            "inheritanceOnly": "InheritanceOnly",
-            "allRelevant": "AllRelevant",
-            "referencesOnly": "ReferencesOnly",
+            "callsOnly": "calls_only",
+            "inheritanceOnly": "inheritance_only",
+            "allRelevant": "all_relevant",
+            "referencesOnly": "references_only",
         }
         api_profile = profile_map.get(profile)
         if api_profile is None:
@@ -600,73 +622,104 @@ public class CredReader {{
                 f'Unsupported profile "{profile}". Use one of: {supported}'
             )
 
-        body: Dict[str, Any] = {
-            "identifier": identifier,
-            "profile": api_profile,
-            "maxCountPerType": max_count_per_type,
-        }
-        if data_source:
-            body["dataSource"] = data_source
-        return self._make_request(
-            "POST", "/api/search/artifact-relationships", body=body
+        return self.tool(
+            "get_artifact_relationships",
+            {
+                "identifier": identifier,
+                "profile": api_profile,
+                "max_count_per_type": max_count_per_type,
+                "data_source": data_source,
+            },
+            output_format=output_format,
+        )
+
+    def get_repository_ontology(
+        self,
+        data_source: Optional[str] = None,
+        output_format: str = "agentic",
+    ) -> Any:
+        return self.tool(
+            "get_repository_ontology",
+            {"data_source": data_source},
+            output_format=output_format,
+        )
+
+    def get_file_tree(
+        self,
+        data_source: Optional[str] = None,
+        path: Optional[str] = None,
+        max_depth: Optional[int] = None,
+        max_nodes: Optional[int] = None,
+        output_depth: Optional[int] = None,
+        output_format: str = "agentic",
+    ) -> Any:
+        return self.tool(
+            "get_file_tree",
+            {
+                "data_source": data_source,
+                "path": path,
+                "max_depth": max_depth,
+                "max_nodes": max_nodes,
+                "output_depth": output_depth,
+            },
+            output_format=output_format,
+        )
+
+    def read_file(
+        self,
+        path: str,
+        data_source: Optional[str] = None,
+        start_line: Optional[int] = None,
+        end_line: Optional[int] = None,
+        output_format: str = "agentic",
+    ) -> Any:
+        return self.tool(
+            "read_file",
+            {
+                "path": path,
+                "data_source": data_source,
+                "start_line": start_line,
+                "end_line": end_line,
+            },
+            output_format=output_format,
+        )
+
+    def get_artifact_query_schema(
+        self,
+        entity: Optional[str] = None,
+        include_examples: bool = True,
+        output_format: str = "agentic",
+    ) -> Any:
+        return self.tool(
+            "get_artifact_query_schema",
+            {"entity": entity, "include_examples": include_examples},
+            output_format=output_format,
+        )
+
+    def query_artifact_metadata(
+        self,
+        statement: str,
+        data_sources: Optional[List[str]] = None,
+        output_format: str = "agentic",
+    ) -> Any:
+        return self.tool(
+            "query_artifact_metadata",
+            {"statement": statement, "data_sources": data_sources},
+            output_format=output_format,
         )
 
     def chat(
         self,
         question: str,
         data_sources: Optional[List[str]] = None,
-        conversation_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Ask questions about the codebase to an AI consultant.
-
-        Args:
-            question: Question about the codebase
-            data_sources: List of repository or workspace names to analyze
-            conversation_id: ID to continue a previous conversation
-                             (24-character hex Mongo ObjectId)
-
-        Returns:
-            Response with ``answer``, ``conversation_id``, ``message_id``,
-            and ``full_response``.
-        """
-        # Preflight: reject GUIDs / random strings before the network round-trip.
-        # Pre-Phase-3 servers used to return Guid.NewGuid() as response.id and
-        # rejected it on the next turn — this catches that footgun locally.
-        if conversation_id and not _OBJECT_ID_RE.match(conversation_id):
-            raise ValueError(
-                f"conversation_id {conversation_id!r} is not a 24-character hex "
-                f"Mongo ObjectId; pass the value from a previous "
-                f"response.conversation_id"
-            )
-
-        body: Dict[str, Any] = {
-            "messages": [{"role": "user", "content": question}],
-            "stream": False,
-        }
-
-        if conversation_id:
-            body["conversationId"] = conversation_id
-        elif data_sources:
-            body["names"] = data_sources
-        else:
-            raise ValueError("Either conversation_id or data_sources must be provided")
-
-        response = self._make_request("POST", "/api/chat/completions", body=body)
-
-        # Prefer the documented Phase-3 shape ({content, conversationId, messageId});
-        # fall back to the legacy OpenAI-style envelope so this client keeps working
-        # against pre-Phase-3 servers during incremental rollout.
-        answer = response.get("content")
-        if not answer:
-            answer = (response.get("choices") or [{}])[0].get("message", {}).get("content", "")
-
-        return {
-            "answer": answer,
-            "conversation_id": response.get("conversationId") or response.get("id"),
-            "message_id": response.get("messageId"),
-            "full_response": response,
-        }
+        output_format: str = "agentic",
+    ) -> Any:
+        """Ask stateless CodeAlive chat through Tool API v3."""
+        return self.tool(
+            "chat",
+            {"question": question, "data_sources": data_sources},
+            output_format=output_format,
+        )
 
 
 def main():
@@ -675,12 +728,17 @@ def main():
         print("Usage: python api_client.py <command> [args...]")
         print("Commands:")
         print("  datasources [--all] [--query TASK]")
-        print("  search <query> <data_source1> [data_source2...] [--mode auto|fast|deep] [--description-detail short|full]")
+        print("  search <query> <data_source1> [data_source2...]")
         print("  semantic-search <query> <data_source1> [data_source2...] [--path PATH] [--ext EXT] [--max-results N]")
         print("  grep-search <query> <data_source1> [data_source2...] [--regex] [--path PATH] [--ext EXT] [--max-results N]")
         print("  fetch <identifier1> [identifier2...] [--data-source NAME_OR_ID]")
         print("  relationships <identifier> [--profile callsOnly|inheritanceOnly|allRelevant|referencesOnly] [--max-count N] [--data-source NAME_OR_ID]")
-        print("  chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
+        print("  ontology [data_source]")
+        print("  tree [data_source]")
+        print("  read-file <path> [data_source]")
+        print("  schema")
+        print("  metadata <statement> [data_source1] [data_source2...]")
+        print("  chat <question> <data_source1> [data_source2...]")
         sys.exit(1)
 
     client = CodeAliveClient()
@@ -688,7 +746,7 @@ def main():
 
     try:
         if command == "datasources":
-            alive_only = "--all" not in sys.argv
+            ready_only = "--all" not in sys.argv
             query = None
             if "--query" in sys.argv:
                 query_index = sys.argv.index("--query")
@@ -696,12 +754,12 @@ def main():
                     print("Usage: datasources [--all] [--query TASK]")
                     sys.exit(1)
                 query = sys.argv[query_index + 1]
-            result = client.get_datasources(alive_only=alive_only, query=query)
+            result = client.get_datasources(ready_only=ready_only, query=query, output_format="json")
             print(json.dumps(result, indent=2))
 
         elif command == "search":
             if len(sys.argv) < 4:
-                print("Usage: search <query> <data_source1> [data_source2...] [--mode MODE] [--description-detail short|full]")
+                print("Usage: search <query> <data_source1> [data_source2...]")
                 sys.exit(1)
 
             query = sys.argv[2]
@@ -868,34 +926,49 @@ def main():
             )
             print(json.dumps(result, indent=2))
 
+        elif command == "ontology":
+            data_source = sys.argv[2] if len(sys.argv) > 2 else None
+            print(client.get_repository_ontology(data_source=data_source))
+
+        elif command == "tree":
+            data_source = sys.argv[2] if len(sys.argv) > 2 else None
+            print(client.get_file_tree(data_source=data_source))
+
+        elif command == "read-file":
+            if len(sys.argv) < 3:
+                print("Usage: read-file <path> [data_source]")
+                sys.exit(1)
+            data_source = sys.argv[3] if len(sys.argv) > 3 else None
+            print(client.read_file(sys.argv[2], data_source=data_source))
+
+        elif command == "schema":
+            print(client.get_artifact_query_schema())
+
+        elif command == "metadata":
+            if len(sys.argv) < 3:
+                print("Usage: metadata <statement> [data_source1] [data_source2...]")
+                sys.exit(1)
+            print(client.query_artifact_metadata(sys.argv[2], sys.argv[3:] or None))
+
         elif command == "chat":
             if len(sys.argv) < 4:
-                print("Usage: chat <question> <data_source1> [data_source2...] [--conversation-id ID]")
+                print("Usage: chat <question> <data_source1> [data_source2...]")
                 sys.exit(1)
 
             question = sys.argv[2]
-            conversation_id = None
             data_sources = []
 
             i = 3
             while i < len(sys.argv):
                 arg = sys.argv[i]
-                if arg == "--conversation-id":
-                    # Match the flag first, then require a value — otherwise a trailing
-                    # "--conversation-id" with no value would be silently appended as a data source.
-                    if i + 1 >= len(sys.argv):
-                        print("Error: --conversation-id requires a value.", file=sys.stderr)
-                        sys.exit(1)
-                    conversation_id = sys.argv[i + 1]
-                    i += 2
+                if arg in {"--conversation-id", "--continue"}:
+                    print("Error: chat is stateless in v3; include prior context in the question instead.", file=sys.stderr)
+                    sys.exit(1)
                 else:
                     data_sources.append(arg)
                     i += 1
 
-            result = client.chat(question, data_sources if data_sources else None, conversation_id)
-            print(result["answer"])
-            if result.get("conversation_id"):
-                print(f"\nConversation ID: {result['conversation_id']}")
+            print(client.chat(question, data_sources if data_sources else None))
 
         else:
             print(f"Unknown command: {command}")

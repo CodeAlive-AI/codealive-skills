@@ -230,16 +230,23 @@ def store_key(api_key: str) -> bool:
 def verify_key(api_key: str, base_url: str = DEFAULT_BASE_URL) -> tuple[bool, str]:
     """Test the API key by fetching data sources. Returns (success, message)."""
     normalized_base_url = normalize_base_url(base_url)
-    url = f"{normalized_base_url}/api/datasources/ready"
+    url = f"{normalized_base_url}/api/tools/get_data_sources"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
+        "Accept": "application/json, application/problem+json",
+        "X-CodeAlive-Integration": "skills",
+        "X-CodeAlive-Tool": "get_data_sources",
+        "X-CodeAlive-Client": "skills-v3-setup",
     }
-    req = urllib.request.Request(url, headers=headers, method="GET")
+    body = json.dumps({"ready_only": True, "output_format": "json"}).encode("utf-8")
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-            count = len(data) if isinstance(data, list) else 0
+            obj = data.get("obj", {}) if isinstance(data, dict) else {}
+            sources = obj.get("data_sources", []) if isinstance(obj, dict) else []
+            count = len(sources) if isinstance(sources, list) else 0
             return True, f"Connected. {count} data source{'s' if count != 1 else ''} available."
     except urllib.error.HTTPError as e:
         if e.code == 401:
