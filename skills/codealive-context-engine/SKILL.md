@@ -51,7 +51,12 @@ Do NOT retry the failed script until setup completes successfully.
 
 **Cost guidance:** `semantic_search` and `grep_search` are the default starting point — fast and cheap. Use `fetch_artifacts` to load full source and `get_artifact_relationships` to trace call graphs. All four tools are low-cost.
 
-**Chat is not recommended:** `chat.py` invokes an LLM on the server side, can take up to 30 seconds, and is significantly more expensive per call. It is stateless in v3: include prior findings, artifact identifiers, assumptions, scope, and constraints in each question. Do NOT call it unless the user has explicitly requested it (e.g. "use chat", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" do NOT qualify — they refer to search tools.
+**Chat is not recommended:** `chat.py` invokes an LLM on the server side, can take substantially longer than retrieval, and is significantly more expensive per call. It is stateless in v3: include prior findings, artifact identifiers, assumptions, scope, and constraints in each question. Do NOT call it unless the user has explicitly requested it (e.g. "use chat", "call the chat tool"). Phrases like "ask CodeAlive" or "search CodeAlive" do NOT qualify — they refer to search tools.
+
+**Repairable tool errors:** Treat a returned `<tool_error>` as a failed call,
+not as an empty successful result. Follow its `<try>` guidance, repair the
+arguments, and retry only when the `<retry>` field permits it. Tool API v3
+always preserves the same error in `obj.error` for JSON-mode automation.
 
 **Highest-confidence guidance:** If your agent supports subagents and the task needs maximum reliability or depth, prefer a subagent-driven workflow that combines `ontology.py`, `search.py`, `grep.py`, `fetch.py`, `tree.py`/`read_file.py`, `relationships.py`, `metadata.py`, and local file reads.
 
@@ -304,7 +309,7 @@ don't match the artifact's real logic.
 
 Sends your self-contained question to an AI consultant that has full context of the selected indexed codebase. Returns synthesized, ready-to-use answers.
 
-**This is slow and expensive** — runs an LLM on the server side, up to 30 seconds per call. It is stateless in v3, so include prior findings, identifiers, assumptions, scope, and constraints in each question. For all standard tasks (finding code, understanding architecture, debugging), use ontology, search, grep, fetch/read, relationships, and metadata queries instead.
+**This is slow and expensive** — runs an LLM on the server side and can take substantially longer than retrieval. It is stateless in v3, so include prior findings, identifiers, assumptions, scope, and constraints in each question. For all standard tasks (finding code, understanding architecture, debugging), use ontology, search, grep, fetch/read, relationships, and metadata queries instead.
 
 ```bash
 python scripts/chat.py <question> <data_sources...> [options]

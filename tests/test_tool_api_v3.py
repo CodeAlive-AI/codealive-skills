@@ -107,6 +107,30 @@ def test_client_json_mode_returns_obj():
     assert result == {"name": "schema"}
 
 
+def test_client_preserves_both_repairable_error_projections():
+    error_obj = {
+        "error": {
+            "code": "invalid_tool_arguments",
+            "message": "question is required",
+            "retry": "yes - repair the tool arguments and call the tool again",
+            "try": "Provide question and retry.",
+        }
+    }
+    envelope = {
+        "obj": error_obj,
+        "rendered": "<tool_error><code>invalid_tool_arguments</code></tool_error>",
+    }
+    routes = {("POST", "/api/tools/semantic_search"): (200, envelope)}
+
+    with mock_codealive_server(routes) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        agentic = client.semantic_search("valid locally", ["backend"], output_format="agentic")
+        structured = client.semantic_search("valid locally", ["backend"], output_format="json")
+
+    assert agentic == envelope["rendered"]
+    assert structured == error_obj
+
+
 def test_client_methods_cover_all_v3_tools():
     seen = []
 
