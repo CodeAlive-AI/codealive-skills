@@ -99,6 +99,12 @@ Start your agent and ask naturally:
 
 No special commands needed — the agent picks up the skill automatically.
 
+To check the installed skill version without authentication or a network request:
+
+```bash
+python skills/codealive-context-engine/scripts/get_version.py
+```
+
 ## License
 
 MIT

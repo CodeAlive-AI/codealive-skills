@@ -26,6 +26,7 @@ def _load_module(path: Path, name: str):
 
 
 skill_setup_module = _load_module(SKILL_ROOT / "setup.py", "codealive_skill_setup_v3")
+skill_version_module = _load_module(SKILL_ROOT / "scripts" / "get_version.py", "codealive_skill_version_v3")
 sys.path.insert(0, str(LIB_ROOT))
 from api_client import CodeAliveClient, format_codealive_error  # noqa: E402
 
@@ -36,6 +37,28 @@ def _tool_response(name: str = "ok"):
 
 def _header(headers: dict[str, str], name: str) -> str | None:
     return next((value for key, value in headers.items() if key.lower() == name.lower()), None)
+
+
+def test_get_version_matches_plugin_release_version():
+    plugin = json.loads((REPO_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+
+    assert skill_version_module.get_version() == "3.0.0"
+    assert skill_version_module.get_version() == plugin["version"]
+
+
+def test_get_version_script_returns_json_without_authentication():
+    result = subprocess.run(
+        [sys.executable, str(SKILL_ROOT / "scripts" / "get_version.py")],
+        check=True,
+        capture_output=True,
+        text=True,
+        env={},
+    )
+
+    assert json.loads(result.stdout) == {
+        "name": "codealive-context-engine",
+        "version": "3.0.0",
+    }
 
 
 def test_setup_normalize_base_url_accepts_origin_and_api_suffix():

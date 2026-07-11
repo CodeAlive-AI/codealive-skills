@@ -48,6 +48,7 @@ Do NOT retry the failed script until setup completes successfully.
 | **ArtifactQuery Schema** | `schema.py` | Fast | Free | Inspect supported metadata query entities, fields, and examples |
 | **Artifact Metadata Query** | `metadata.py` | Fast | Low | Read-only aggregate/query analytics across indexed repositories |
 | **Chat with Codebase** | `chat.py` | Slow | High | Stateless synthesized Q&A. Call ONLY when the user explicitly asks. |
+| **Get Version** | `get_version.py` | Instant | Free | Return the installed CodeAlive skill version as JSON; no API key or network call required |
 
 **Cost guidance:** `semantic_search` and `grep_search` are the default starting point — fast and cheap. Use `fetch_artifacts` to load full source and `get_artifact_relationships` to trace call graphs. All four tools are low-cost.
 
@@ -161,6 +162,15 @@ python scripts/chat.py "Given these prior findings and identifiers: ..., what ab
 **Do not call chat unless the user explicitly asks for it.** v3 chat is stateless and has no `conversation_id`; include all needed context in each question. Use ontology, search, grep, fetch/read, relationships, and metadata queries for all other tasks.
 
 ## Tool Reference
+
+### `get_version.py` — Get Installed Version
+
+Returns the installed CodeAlive Context Engine skill version as JSON. It does not require authentication or make a network request.
+
+```bash
+python scripts/get_version.py
+# {"name": "codealive-context-engine", "version": "3.0.0"}
+```
 
 ### `datasources.py` — List Data Sources
 
