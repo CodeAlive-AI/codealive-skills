@@ -130,6 +130,39 @@ def test_client_json_mode_returns_obj():
     assert result == {"name": "schema"}
 
 
+def test_client_agentic_mode_falls_back_to_structured_obj_when_rendered_is_missing():
+    structured = {
+        "artifacts": [
+            {
+                "identifier": "repo::src/Foo.cs::Foo",
+                "found": True,
+                "content": "public sealed class Foo {}",
+            }
+        ]
+    }
+    with mock_codealive_server(
+        {("POST", "/api/tools/fetch_artifacts"): (200, {"obj": structured})}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.fetch_artifacts(["repo::src/Foo.cs::Foo"])
+
+    assert json.loads(result) == structured
+
+
+def test_client_agentic_mode_falls_back_to_structured_obj_when_rendered_is_empty():
+    structured = {
+        "found": True,
+        "files": [{"path": "README.md", "numberedContent": "1 | # Hello"}],
+    }
+    with mock_codealive_server(
+        {("POST", "/api/tools/read_file"): (200, {"rendered": "", "obj": structured})}
+    ) as (base_url, _requests):
+        client = CodeAliveClient(api_key="skill-test-key", base_url=base_url)
+        result = client.read_file("README.md")
+
+    assert json.loads(result) == structured
+
+
 def test_client_preserves_both_repairable_error_projections():
     error_obj = {
         "error": {

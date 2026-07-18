@@ -443,9 +443,27 @@ public class CredReader {{
             },
         )
         if output_format == "agentic":
-            return envelope.get("rendered", "")
+            rendered = envelope.get("rendered")
+            if isinstance(rendered, str) and rendered.strip():
+                return rendered
+
+            # A mixed-version or partially rolled out backend can return the canonical
+            # structured projection even though this client requested agentic output.
+            # Never translate that protocol mismatch into a successful empty tool result:
+            # preserve all evidence as JSON so the agent can continue deterministically.
+            if "obj" in envelope and envelope["obj"] is not None:
+                return json.dumps(envelope["obj"], ensure_ascii=False)
+
+            raise RuntimeError(
+                f"Invalid Tool API response for '{name}': "
+                "neither a non-empty 'rendered' projection nor 'obj' was returned."
+            )
         if output_format == "json":
-            return envelope.get("obj", {})
+            if "obj" in envelope:
+                return envelope["obj"]
+            raise RuntimeError(
+                f"Invalid Tool API response for '{name}': JSON mode did not return 'obj'."
+            )
         return envelope
 
     def get_datasources(
