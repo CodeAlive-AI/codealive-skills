@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import importlib.util
+import http.client
 import json
 import os
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
+
+import pytest
 
 from helpers import mock_codealive_server
 
@@ -28,6 +33,7 @@ def _load_module(path: Path, name: str):
 skill_setup_module = _load_module(SKILL_ROOT / "setup.py", "codealive_skill_setup_v3")
 sys.path.insert(0, str(LIB_ROOT))
 from api_client import CodeAliveClient, format_codealive_error  # noqa: E402
+import api_transport  # noqa: E402
 
 
 def _tool_response(name: str = "ok"):
@@ -63,6 +69,49 @@ def test_verify_key_uses_tool_api_v3_and_normalizes_base_url():
     assert _header(requests[0]["headers"], "X-CodeAlive-Integration") == "skills"
     assert _header(requests[0]["headers"], "X-CodeAlive-Tool") == "get_data_sources"
     assert json.loads(requests[0]["body"]) == {"ready_only": True, "output_format": "json"}
+
+
+def test_transport_retries_direct_after_proxy_closes_connection(monkeypatch):
+    request = urllib.request.Request("https://app.codealive.ai/api/tools/get_data_sources")
+    proxy_error = http.client.RemoteDisconnected("Remote end closed connection without response")
+    calls = []
+
+    def proxy_urlopen(received_request, timeout):
+        calls.append(("proxy", received_request.full_url, timeout))
+        received_request.set_proxy("http://proxy", "https")
+        raise proxy_error
+
+    class DirectOpener:
+        def open(self, received_request, timeout):
+            calls.append(("direct", received_request.full_url, timeout))
+            assert not hasattr(received_request, "proxy")
+            return "direct-response"
+
+    monkeypatch.setattr(api_transport.urllib.request, "urlopen", proxy_urlopen)
+    monkeypatch.setattr(api_transport.urllib.request, "getproxies", lambda: {"https": "http://proxy"})
+    monkeypatch.setattr(api_transport.urllib.request, "proxy_bypass", lambda host: False)
+    monkeypatch.setattr(api_transport.urllib.request, "build_opener", lambda *handlers: DirectOpener())
+
+    result = api_transport.open_url_with_direct_fallback(request, timeout=15)
+
+    assert result == "direct-response"
+    assert calls == [
+        ("proxy", request.full_url, 15),
+        ("direct", request.full_url, 15),
+    ]
+
+
+def test_transport_does_not_retry_when_no_proxy_is_configured(monkeypatch):
+    request = urllib.request.Request("https://app.codealive.ai/api/tools/get_data_sources")
+    error = http.client.RemoteDisconnected("Remote end closed connection without a response")
+
+    monkeypatch.setattr(api_transport.urllib.request, "urlopen", lambda request, timeout: (_ for _ in ()).throw(error))
+    monkeypatch.setattr(api_transport.urllib.request, "getproxies", lambda: {})
+
+    with pytest.raises(http.client.RemoteDisconnected) as raised:
+        api_transport.open_url_with_direct_fallback(request, timeout=15)
+
+    assert raised.value is error
 
 
 def test_client_posts_canonical_payload_and_returns_rendered_by_default():

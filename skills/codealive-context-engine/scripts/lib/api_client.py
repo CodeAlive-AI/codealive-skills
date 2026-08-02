@@ -12,6 +12,8 @@ import urllib.error
 import urllib.parse
 from typing import Optional, Dict, Any, List
 
+from api_transport import open_url_with_direct_fallback
+
 
 CLIENT_VERSION = "skills-v3"
 
@@ -367,7 +369,7 @@ public class CredReader {{
 
         # Make request
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with open_url_with_direct_fallback(request, timeout=self.timeout) as response:
                 response_data = response.read().decode("utf-8")
                 parsed = json.loads(response_data) if response_data else {}
                 if return_headers:

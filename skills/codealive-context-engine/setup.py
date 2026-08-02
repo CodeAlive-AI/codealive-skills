@@ -22,6 +22,12 @@ import urllib.error
 import urllib.parse
 
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
+LIB_DIR = os.path.join(SKILL_DIR, "scripts", "lib")
+if LIB_DIR not in sys.path:
+    sys.path.insert(0, LIB_DIR)
+
+from api_transport import open_url_with_direct_fallback
+
 SERVICE_NAME = "codealive-api-key"
 DEFAULT_BASE_URL = "https://app.codealive.ai"
 
@@ -242,7 +248,7 @@ def verify_key(api_key: str, base_url: str = DEFAULT_BASE_URL) -> tuple[bool, st
     body = json.dumps({"ready_only": True, "output_format": "json"}).encode("utf-8")
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with open_url_with_direct_fallback(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             obj = data.get("obj", {}) if isinstance(data, dict) else {}
             sources = obj.get("data_sources", []) if isinstance(obj, dict) else []
