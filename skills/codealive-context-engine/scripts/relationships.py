@@ -137,11 +137,43 @@ def format_relationships(data: dict, data_source: str = None) -> str:
             output.append(f"  • {ident}")
             if loc:
                 output.append(f"      📍 {loc}")
+            for call_site_line in _format_call_sites(item):
+                output.append(call_site_line)
             if short_summary:
                 output.append(f"      📝 {short_summary}")
 
     output.append("")
     return "\n".join(output)
+
+
+def _format_call_sites(item: dict) -> list:
+    """Render where a call is written, if we know.
+
+    Nothing is printed when the position is unknown — which means the repository has not been
+    re-indexed since call sites were introduced, NOT that the call does not happen. Printing an
+    empty "call sites" heading would suggest the latter.
+    """
+    call_sites = item.get("callSites")
+    if not call_sites:
+        return []
+
+    lines = []
+    for site in call_sites:
+        file_path = (site or {}).get("filePath")
+        line_number = (site or {}).get("line")
+        if not file_path or not line_number:
+            continue
+
+        # Confidence is shown only when the backend sent one; its absence means the position is exact.
+        confidence = (site or {}).get("confidence")
+        approximate = f"  (~{confidence:.0%} confident)" if confidence is not None else ""
+        lines.append(f"      ↪ called at {file_path}:{line_number}{approximate}")
+
+    total = item.get("callSiteCount")
+    if isinstance(total, int) and total > len(lines) > 0:
+        lines.append(f"      ↪ … {total - len(lines)} more call site(s) not shown")
+
+    return lines
 
 
 def main():
