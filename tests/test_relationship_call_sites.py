@@ -41,7 +41,7 @@ def _item(**overrides):
 def test_known_positions_are_rendered_as_call_sites() -> None:
     # Arrange
     item = _item(
-        callSites=[{"filePath": "src/svc.py", "line": 17}],
+        callSites=[{"position": "src/svc.py:17"}],
         callSiteCount=1,
     )
 
@@ -56,8 +56,8 @@ def test_confidence_is_shown_only_when_the_position_is_approximate() -> None:
     # Arrange
     item = _item(
         callSites=[
-            {"filePath": "src/svc.py", "line": 17},
-            {"filePath": "src/svc.py", "line": 88, "confidence": 0.6},
+            {"position": "src/svc.py:17"},
+            {"position": "src/svc.py:88", "confidence": 0.6},
         ],
         callSiteCount=2,
     )
@@ -73,7 +73,7 @@ def test_confidence_is_shown_only_when_the_position_is_approximate() -> None:
 def test_a_capped_list_says_how_many_were_withheld() -> None:
     # Arrange
     item = _item(
-        callSites=[{"filePath": "src/svc.py", "line": 17}],
+        callSites=[{"position": "src/svc.py:17"}],
         callSiteCount=4,
     )
 
@@ -98,3 +98,20 @@ def test_an_unindexed_position_renders_nothing_at_all() -> None:
     # Assert
     assert from_missing == []
     assert from_empty == []
+
+
+def test_a_site_without_a_position_is_skipped_rather_than_rendered_blank() -> None:
+    # Defensive: a malformed site from an older or partially rolled-back backend must not produce a
+    # "called at" line pointing nowhere, which an agent would try to read.
+    # Arrange
+    item = _item(
+        # The count is the pre-cap total of KNOWN positions, so a malformed entry does not raise it.
+        callSites=[{"confidence": 0.6}, {"position": "src/svc.py:17"}],
+        callSiteCount=1,
+    )
+
+    # Act
+    lines = relationships._format_call_sites(item)
+
+    # Assert
+    assert lines == ["      ↪ called at src/svc.py:17"]

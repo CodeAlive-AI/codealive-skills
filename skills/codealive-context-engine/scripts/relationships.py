@@ -159,15 +159,16 @@ def _format_call_sites(item: dict) -> list:
 
     lines = []
     for site in call_sites:
-        file_path = (site or {}).get("filePath")
-        line_number = (site or {}).get("line")
-        if not file_path or not line_number:
+        # The backend already spells a position as "path:line" — the form this line renders — so it is
+        # printed verbatim rather than reassembled from parts.
+        position = (site or {}).get("position")
+        if not position:
             continue
 
         # Confidence is shown only when the backend sent one; its absence means the position is exact.
         confidence = (site or {}).get("confidence")
         approximate = f"  (~{confidence:.0%} confident)" if confidence is not None else ""
-        lines.append(f"      ↪ called at {file_path}:{line_number}{approximate}")
+        lines.append(f"      ↪ called at {position}{approximate}")
 
     total = item.get("callSiteCount")
     if isinstance(total, int) and total > len(lines) > 0:

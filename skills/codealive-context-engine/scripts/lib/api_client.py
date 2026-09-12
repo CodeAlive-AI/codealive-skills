@@ -628,10 +628,10 @@ public class CredReader {{
             (identifier, filePath, startLine, shortSummary).
 
             Call items additionally carry ``callSites`` — where the call is
-            written (filePath, 1-based line, and a ``confidence`` only when the
-            position is approximate) — and ``callSiteCount``, the pre-cap total.
-            Their ABSENCE means the position is not indexed yet, never that the
-            call does not happen.
+            written (``position`` as ``path:line``, plus a ``confidence`` only
+            when the position is approximate) — and ``callSiteCount``, the
+            pre-cap total. Their ABSENCE means the position is not indexed yet,
+            never that the call does not happen.
         """
         profile_map = {
             "callsOnly": "calls_only",
