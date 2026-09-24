@@ -308,6 +308,34 @@ artifact that fits in context. The outgoing calls you need are either in the
 source you just read or in the preview's 3-cap — reach for `relationships.py`
 only when you specifically need incoming calls, inheritance, or references.
 
+**Call sites — read the call, not the whole caller.** Call relationships
+(`outgoing_calls` / `incoming_calls`) also show *where* each call is written:
+
+```
+  • my-org/backend::src/db.py::query
+      📍 src/db.py:42
+      ↪ called at src/svc.py:17
+      ↪ called at src/svc.py:88  (~60% confident)
+      ↪ … 3 more call site(s) not shown
+```
+
+There is no flag for this — positions come back whenever they are known, so
+don't go looking for one. Read those exact lines with `Read`/`sed` instead of
+fetching the whole calling artifact.
+
+Three things to keep straight:
+- **No `called at` line** means the position is **not indexed yet** — the
+  repository was indexed before call sites existed, or that one edge could not
+  be located. It **never** means the call does not happen. The relationship
+  being listed at all is what says the call exists.
+- **A confidence** (`~60% confident`) appears only when the position is
+  approximate; treat it as a hint and confirm by reading. **No confidence
+  means the position is exact.**
+- **`… N more`** means the list was capped, not that the rest do not exist.
+
+For `incoming_calls` the file shown is the **caller's** file, which is a
+different file from the artifact you asked about.
+
 **Noise caveat:** outgoing calls occasionally include compiler-generated
 helpers (`MoveNext`, `GetEnumerator`, closure invocations) for methods using
 `foreach`/LINQ. These are analyzer artifacts — ignore outgoing hits that
